@@ -194,7 +194,7 @@ namespace JobAssist
             {
                 builder.StartSentence();
 
-                builder.AppendText("What is the city, state or zip code that you would like to search?");
+                builder.AppendText("Ok. What is the city, state or zip code that you would like to search?");
 
                 builder.EndSentence();
 
@@ -206,7 +206,7 @@ namespace JobAssist
             {
                 builder.StartSentence();
 
-                string jobText = string.Format("You would like to search for jobs in {0}", answer);
+                string jobText = string.Format("Ok, {0}. Is that right?", answer);
                 builder.AppendText(jobText);
 
                 builder.EndSentence();
