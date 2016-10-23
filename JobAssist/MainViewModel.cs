@@ -52,6 +52,8 @@ namespace JobAssist
 
         public List<Job> jobs = new List<Job>();
 
+        public Interpreter intepreter = new Interpreter();
+
         
         
 
@@ -74,6 +76,7 @@ namespace JobAssist
         public MainViewModel()
         {
 
+
             //ActivateRecognitionCommand = new RelayCommand(ActivateRecognition);
             //SpeakCommand = new RelayCommand(Speak);
             StartDialogueCommand = new RelayCommand(Dialogue);
@@ -92,25 +95,22 @@ namespace JobAssist
         private void api_test()
         {
 
-            var client = new RestClient("http://www.glassdoor.com/api/json/search/jobProgression.htm");
+            var client = new RestClient("https://api.projectoxford.ai/luis/v1/application?id=4600ad20-e123-4cbd-b46c-fb653858afc8&subscription-key=ce202902c79544d79e964d60bf055410");
             var request = new RestRequest(Method.GET);
-            request.AddParameter("t.p", "102234");
-            request.AddParameter("t.k", "egSVvV0B2Jg");
-            request.AddParameter("format", "json");
-            request.AddParameter("v", "1");
-            request.AddParameter("action", "jobs-stats"); //job search query string
-           // request.AddParameter("q", "software developer");
-            request.AddParameter("jobTitle", "cashier");
-            request.AddParameter("countryId", "1");
+            //request.AddParameter("id", "id=4600ad20-e123-4cbd-b46c-fb653858afc8");
+            //request.AddParameter("subscription-key", "ce202902c79544d79e964d60bf055410");
+            request.AddParameter("q", "yes go ahead");
 
             IRestResponse response = client.Execute(request);
 
 
-            JObject jobsData = JObject.Parse(response.Content);
+            JObject responseData = JObject.Parse(response.Content);
 
-           string medianSalary = (string)jobsData["response"]["payMedian"];
+             string intent = (string)responseData["intents"][0]["intent"];
 
-            Debug.WriteLine(medianSalary);
+           // string intent = response.ToString();
+
+            Debug.WriteLine(intent);
 
 
         }
@@ -400,6 +400,8 @@ namespace JobAssist
 
             if (e.Bookmark == "1")
             {
+                answer = intepreter.Interpret(answer);
+
                 Debug.WriteLine("Would you like to search for jobs today: " + answer);
                 if (answer == "Yes" || answer == "yes")
                 {
@@ -433,6 +435,8 @@ namespace JobAssist
 
             if (e.Bookmark == "3")
             {
+                answer = intepreter.Interpret(answer);
+
                 Debug.WriteLine("You would like to search for [job type] jobs?: " + answer);
                 if (answer == "Yes" || answer == "yes")
                 {
@@ -458,6 +462,8 @@ namespace JobAssist
 
             if (e.Bookmark == "4")
             {
+                answer = intepreter.Interpret(answer);
+
                 Debug.WriteLine("Would you like to search for jobs in a specific city or state: " + answer);
                 if (answer == "Yes" || answer == "yes")
                 {
@@ -491,6 +497,8 @@ namespace JobAssist
 
             if (e.Bookmark == "6")
             {
+                answer = intepreter.Interpret(answer);
+
                 Debug.WriteLine("You would like to search for jobs in [place]: " + answer);
                 if (answer == "Yes" || answer == "yes")
                 {
@@ -567,6 +575,8 @@ namespace JobAssist
                 else
                 {
                     Debug.WriteLine("Would you like to review the listings? " + answer);
+                    answer = intepreter.Interpret(answer);
+
                     if (answer == "Yes" || answer == "yes")
                     {
                         step = 9;
