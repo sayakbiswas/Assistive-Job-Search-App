@@ -49,6 +49,8 @@ namespace JobAssist
 
         public string jobLocation;
 
+        public int firstRun = 0;
+
         public bool searchByLocation = false;
 
         public List<Job> jobs = new List<Job>();
@@ -142,9 +144,13 @@ namespace JobAssist
 
             if (step == 1)
             {
+                if(firstRun == 0)
+                {
+                    builder.AppendText("Welcome to job assist. Speak your responses after the beep. Say quit at any time to exit.");
+                    firstRun++;
 
+                }
 
-                builder.AppendText("Welcome to job assist. Speak your responses after the beep. Say quit at any time to exit.");
 
                 builder.StartSentence();
 
@@ -456,7 +462,7 @@ namespace JobAssist
                 }
                 else if (answer == "No" || answer == "no")
                 {
-                    step = 1;
+                    step = 100;
                 }
                 else if (answer == "Quit" || answer == "quit")
                 {
