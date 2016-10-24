@@ -16,6 +16,7 @@ using System.Xml;
 using System.Xml.Linq;
 using Newtonsoft.Json.Linq;
 using System.Windows;
+using System.IO;
 
 namespace JobAssist
 {
@@ -281,7 +282,23 @@ namespace JobAssist
 
                     if (answer == "Yes" || answer == "yes")
                     {
-                        //save job
+                        string saveFile = @"C:\Users\Julian\Desktop\job_assist_" + DateTime.Now.Date.ToString("MMM-dd-yyyy") + ".txt";
+
+                        string jobInformation = String.Format("Job title: {0}. Job description: {1}", j.jobtitle, j.snippet);
+
+                        if (!File.Exists(saveFile))
+                        {
+                            File.WriteAllText(saveFile, jobInformation);
+                        }
+                        else
+                        {
+                            using (StreamWriter file = new StreamWriter(saveFile, true))
+                            {
+                                file.WriteLine(jobInformation);
+                            }
+                        }
+
+                        _synthesizer.Speak("The job has been saved.");
                     }
 
                     Thread.Sleep(1500);
@@ -346,14 +363,31 @@ namespace JobAssist
 
             if (step == 100)
             {
+                _synthesizer.Speak("Ok. You would like to quit?");
 
-                builder.StartSentence();
+                Console.Beep();
+                _recognizer.Recognize();
 
-                builder.AppendText("Thank you for using Job Assist. Goodbye.");
+                answer = intepreter.Interpret(answer);
 
-                builder.EndSentence();
+                if (answer == "Yes" || answer == "yes" )
+                {
+                    builder.StartSentence();
 
-                Application.Current.Shutdown();
+                    builder.AppendText("Thank you for using Job Assist. Goodbye.");
+
+                    builder.EndSentence();
+
+                    Application.Current.Shutdown();
+
+                }
+                else
+                {
+                    step = 2;
+                    Dialogue();
+                }
+
+
             }
 
             _synthesizer.Speak(builder);
@@ -428,7 +462,16 @@ namespace JobAssist
             if (e.Bookmark == "2")
             {
                 Debug.WriteLine("What type of job would you like to search for: " + answer);
-                step = 3;
+                if(answer == "quit")
+                {
+                    step = 100;
+
+                }
+                else
+                {
+                    step = 3;
+                }
+                
 
             }
 
