@@ -161,7 +161,7 @@ namespace JobAssist
             {
                 builder.StartSentence();
 
-                builder.AppendText("What type of job would you like to search for?");
+                builder.AppendText("Ok. What type of job would you like to search for?");
 
                 builder.EndSentence();
 
@@ -280,6 +280,8 @@ namespace JobAssist
                     Console.Beep();
                     _recognizer.Recognize();
 
+                    answer = intepreter.Interpret(answer);
+
                     if (answer == "Yes" || answer == "yes")
                     {
                         string saveFile = @"C:\Users\Julian\Desktop\job_assist_" + DateTime.Now.Date.ToString("MMM-dd-yyyy") + ".txt";
@@ -308,6 +310,8 @@ namespace JobAssist
 
                     Console.Beep();
                     _recognizer.Recognize();
+
+                    answer = intepreter.Interpret(answer);
 
                     if (answer == "Yes" || answer == "yes")
                     {
@@ -347,7 +351,9 @@ namespace JobAssist
                     Console.Beep();
                     _recognizer.Recognize();
 
-                    if (answer == "No" || answer == "no" || answer == "new search" || answer == "begin a new search")
+                    answer = intepreter.Interpret(answer);
+
+                    if (answer == "No" || answer == "no" || answer == "NewSearch" || answer == "new search" || answer == "begin a new search")
                     {
                         step = 2;
                         Dialogue();
@@ -380,12 +386,18 @@ namespace JobAssist
 
                     Application.Current.Shutdown();
 
+                    Thread.Sleep(3500);
+
+
                 }
                 else
                 {
                     step = 2;
                     Dialogue();
+
                 }
+
+
 
 
             }
