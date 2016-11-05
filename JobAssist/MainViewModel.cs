@@ -261,8 +261,9 @@ namespace JobAssist
 
             if (step == 9) //reviewing the job listings
             {
+                //need to add ability to quit
                 int jobNumber = 1;
-
+           
 
                 foreach (Job j in jobs)
                 {
