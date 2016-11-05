@@ -259,9 +259,9 @@ namespace JobAssist
             }
 
 
-            if (step == 9) //reviewing the job listings
+            if (step == 9) //reviewing the job listings //need to add ability to quit
             {
-                //need to add ability to quit
+                
                 int jobNumber = 1;
            
 
