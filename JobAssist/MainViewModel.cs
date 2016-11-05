@@ -312,57 +312,68 @@ namespace JobAssist
 
                     Thread.Sleep(1500);
 
-
-                    _synthesizer.Speak("Would you like to get salary information for this job?");
-
-                    Console.Beep();
-                    _recognizer.Recognize();
-
-                    answer = intepreter.Interpret(answer);
-
-                    if (answer == "Yes" || answer == "yes")
+                    if(answer != "quit" && answer != "Quit")
                     {
-                        //Call Glassdoor API to get salary information
+                        _synthesizer.Speak("Would you like to get salary information for this job?");
 
-                        var client = new RestClient("http://www.glassdoor.com/api/json/search/jobProgression.htm");
-                        var request = new RestRequest(Method.GET);
-                        request.AddParameter("t.p", "102234");
-                        request.AddParameter("t.k", "egSVvV0B2Jg");
-                        request.AddParameter("format", "json");
-                        request.AddParameter("v", "1");
-                       // request.AddParameter("q", "software developer");
-                        request.AddParameter("jobTitle", jobType);
-                        request.AddParameter("countryId", "1");
+                        Console.Beep();
+                        _recognizer.Recognize();
 
-                        IRestResponse response = client.Execute(request);
+                        answer = intepreter.Interpret(answer);
+
+                        if (answer == "Yes" || answer == "yes")
+                        {
+                            //Call Glassdoor API to get salary information
+
+                            var client = new RestClient("http://www.glassdoor.com/api/json/search/jobProgression.htm");
+                            var request = new RestRequest(Method.GET);
+                            request.AddParameter("t.p", "102234");
+                            request.AddParameter("t.k", "egSVvV0B2Jg");
+                            request.AddParameter("format", "json");
+                            request.AddParameter("v", "1");
+                            // request.AddParameter("q", "software developer");
+                            request.AddParameter("jobTitle", jobType);
+                            request.AddParameter("countryId", "1");
+
+                            IRestResponse response = client.Execute(request);
 
 
-                        JObject jobsData = JObject.Parse(response.Content);
+                            JObject jobsData = JObject.Parse(response.Content);
 
-                        string medianSalary = (string)jobsData["response"]["payMedian"];
+                            string medianSalary = (string)jobsData["response"]["payMedian"];
 
-                        // Debug.WriteLine(medianSalary);
+                            // Debug.WriteLine(medianSalary);
 
-                        string salaryInfo = string.Format("The median salary for {0} jobs is {1} dollars.", jobType, medianSalary);
-                        _synthesizer.Speak(salaryInfo);
+                            string salaryInfo = string.Format("The median salary for {0} jobs is {1} dollars.", jobType, medianSalary);
+                            _synthesizer.Speak(salaryInfo);
 
 
+                        }
+
+                        Thread.Sleep(1500);
                     }
 
-                    Thread.Sleep(1500);
 
+                    if (answer != "quit" && answer != "Quit")
+                    {
 
+                        _synthesizer.Speak("Would you like to hear the next job or begin a new search?");
 
-                    _synthesizer.Speak("Would you like to hear the next job or begin a new search?");
+                        Console.Beep();
+                        _recognizer.Recognize();
 
-                    Console.Beep();
-                    _recognizer.Recognize();
+                        answer = intepreter.Interpret(answer);
 
-                    answer = intepreter.Interpret(answer);
+                    }
 
                     if (answer == "No" || answer == "no" || answer == "NewSearch" || answer == "new search" || answer == "begin a new search")
                     {
                         step = 2;
+                        Dialogue();
+                    }
+                    else if(answer == "quit" || answer == "Quit")
+                    {
+                        step = 100;
                         Dialogue();
                     }
 
@@ -391,9 +402,14 @@ namespace JobAssist
 
                     builder.EndSentence();
 
-                    Application.Current.Shutdown();
+                    _synthesizer.Speak(builder);
 
-                    Thread.Sleep(3500);
+                    Environment.Exit(0);
+
+                    //Application.Current.Shutdown();
+                    //Process.GetCurrentProcess().Kill();
+
+
 
 
                 }
