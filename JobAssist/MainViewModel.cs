@@ -10,7 +10,6 @@ using GalaSoft.MvvmLight.Command;
 using System.Speech.Synthesis;
 using System.Diagnostics;
 using System.Threading;
-using Indeed;
 using RestSharp;
 using System.Xml;
 using System.Xml.Linq;
