@@ -16,6 +16,9 @@ using System.Xml.Linq;
 using Newtonsoft.Json.Linq;
 using System.Windows;
 using System.IO;
+using MongoDB.Bson;
+using MongoDB.Driver;
+using MongoDB.Driver.Core;
 
 namespace JobAssist
 {
@@ -56,10 +59,11 @@ namespace JobAssist
 
         public Interpreter intepreter = new Interpreter();
 
-        
-        
+        //MongoDB URI
+        private String mongoURI = "mongodb://ajs:ajs@ds050189.mlab.com:50189/assisstive-job-search";
+        MongoClient client;
+        IMongoDatabase ajsDatabase;
 
-       
 
         public string SpeechInput
         {
@@ -87,10 +91,13 @@ namespace JobAssist
             //Initialize recognition engine
             InitializeRecognitionEngine();
             InitializeSynthesizer();
-        
 
-           // Dialogue();
 
+            // Dialogue();
+
+            //Initialize MongoDB client
+            client = new MongoClient(mongoURI);
+            ajsDatabase = client.GetDatabase("assisstive-job-search");
         }
 
         //Disregard this  -  only used to test API without walking through speech process
@@ -403,6 +410,8 @@ namespace JobAssist
 
                     _synthesizer.Speak(builder);
 
+                    getAllUtterancesFromDB();
+
                     Environment.Exit(0);
 
                     //Application.Current.Shutdown();
@@ -468,6 +477,13 @@ namespace JobAssist
 
             if (e.Bookmark == "1")
             {
+                //Insert user respose to DB
+                BsonDocument step1UtteranceDocument = new BsonDocument {
+                    {"utterance", answer }
+                };
+                var userUtterancesStep1 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step1");
+                userUtterancesStep1.InsertOneAsync(step1UtteranceDocument);
+
                 answer = intepreter.Interpret(answer);
 
                 Debug.WriteLine("Would you like to search for jobs today: " + answer);
@@ -495,6 +511,13 @@ namespace JobAssist
 
             if (e.Bookmark == "2")
             {
+                //Insert user utterance to DB
+                BsonDocument step2UtteranceDocument = new BsonDocument {
+                    {"utterance", answer }
+                };
+                var userUtterancesStep2 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step2");
+                userUtterancesStep2.InsertOneAsync(step2UtteranceDocument);
+
                 Debug.WriteLine("What type of job would you like to search for: " + answer);
                 if(answer == "quit")
                 {
@@ -512,6 +535,13 @@ namespace JobAssist
 
             if (e.Bookmark == "3")
             {
+                //Insert user utterance to DB
+                BsonDocument step3UtteranceDocument = new BsonDocument {
+                    {"utterance", answer }
+                };
+                var userUtterancesStep3 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step3");
+                userUtterancesStep3.InsertOneAsync(step3UtteranceDocument);
+
                 answer = intepreter.Interpret(answer);
 
                 Debug.WriteLine("You would like to search for [job type] jobs?: " + answer);
@@ -539,6 +569,13 @@ namespace JobAssist
 
             if (e.Bookmark == "4")
             {
+                //Insert user utterance to DB
+                BsonDocument step4UtteranceDocument = new BsonDocument {
+                    {"utterance", answer }
+                };
+                var userUtterancesStep4 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step4");
+                userUtterancesStep4.InsertOneAsync(step4UtteranceDocument);
+
                 answer = intepreter.Interpret(answer);
 
                 Debug.WriteLine("Would you like to search for jobs in a specific city or state: " + answer);
@@ -567,6 +604,13 @@ namespace JobAssist
 
             if (e.Bookmark == "5")
             {
+                //Insert user utterance to DB
+                BsonDocument step5UtteranceDocument = new BsonDocument {
+                    {"utterance", answer }
+                };
+                var userUtterancesStep5 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step5");
+                userUtterancesStep5.InsertOneAsync(step5UtteranceDocument);
+
                 Debug.WriteLine("You would like to search for jobs in: " + answer);
                 step = 6;
 
@@ -574,6 +618,13 @@ namespace JobAssist
 
             if (e.Bookmark == "6")
             {
+                //Insert user utterance to DB
+                BsonDocument step6UtteranceDocument = new BsonDocument {
+                    {"utterance", answer }
+                };
+                var userUtterancesStep6 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step6");
+                userUtterancesStep6.InsertOneAsync(step6UtteranceDocument);
+
                 answer = intepreter.Interpret(answer);
 
                 Debug.WriteLine("You would like to search for jobs in [place]: " + answer);
@@ -651,6 +702,13 @@ namespace JobAssist
                 }
                 else
                 {
+                    //Insert user utterance to DB
+                    BsonDocument step8UtteranceDocument = new BsonDocument {
+                        {"utterance", answer }
+                    };
+                    var userUtterancesStep8 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step8");
+                    userUtterancesStep8.InsertOneAsync(step8UtteranceDocument);
+
                     Debug.WriteLine("Would you like to review the listings? " + answer);
                     answer = intepreter.Interpret(answer);
 
@@ -766,6 +824,73 @@ namespace JobAssist
         {
              RecognizedText = string.Empty;
             _recognizer.RecognizeAsync();
+        }
+
+        private void getAllUtterancesFromDB()
+        {
+            Debug.WriteLine("############ Step 1 Utterances ###########");
+            var userUtterancesStep1 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step1");
+            var step1Utterances = userUtterancesStep1.Find(_ => true).ToList();
+            foreach(var utterance in  step1Utterances)
+            {
+                Debug.WriteLine(utterance);
+            }
+
+            Debug.WriteLine("############ Step 2 Utterances ###########");
+            var userUtterancesStep2 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step2");
+            var step2Utterances = userUtterancesStep2.Find(_ => true).ToList();
+            foreach (var utterance in step2Utterances)
+            {
+                Debug.WriteLine(utterance);
+            }
+
+            Debug.WriteLine("############ Step 3 Utterances ###########");
+            var userUtterancesStep3 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step3");
+            var step3Utterances = userUtterancesStep3.Find(_ => true).ToList();
+            foreach (var utterance in step3Utterances)
+            {
+                Debug.WriteLine(utterance);
+            }
+
+            Debug.WriteLine("############ Step 4 Utterances ###########");
+            var userUtterancesStep4 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step4");
+            var step4Utterances = userUtterancesStep4.Find(_ => true).ToList();
+            foreach (var utterance in step4Utterances)
+            {
+                Debug.WriteLine(utterance);
+            }
+
+            Debug.WriteLine("############ Step 5 Utterances ###########");
+            var userUtterancesStep5 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step5");
+            var step5Utterances = userUtterancesStep5.Find(_ => true).ToList();
+            foreach (var utterance in step5Utterances)
+            {
+                Debug.WriteLine(utterance);
+            }
+
+            Debug.WriteLine("############ Step 6 Utterances ###########");
+            var userUtterancesStep6 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step6");
+            var step6Utterances = userUtterancesStep6.Find(_ => true).ToList();
+            foreach (var utterance in step6Utterances)
+            {
+                Debug.WriteLine(utterance);
+            }
+
+            Debug.WriteLine("############ Step 7 Utterances ###########");
+            var userUtterancesStep7 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step7");
+            var step7Utterances = userUtterancesStep7.Find(_ => true).ToList();
+            foreach (var utterance in step7Utterances)
+            {
+                Debug.WriteLine(utterance);
+            }
+
+            Debug.WriteLine("############ Step 8 Utterances ###########");
+            var userUtterancesStep8 = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step8");
+            var step8Utterances = userUtterancesStep8.Find(_ => true).ToList();
+            foreach (var utterance in step8Utterances)
+            {
+                Debug.WriteLine(utterance);
+            }
         }
     }
 }
