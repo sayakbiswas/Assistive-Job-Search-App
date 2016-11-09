@@ -19,6 +19,8 @@ using System.IO;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.Core;
+using Microsoft.CognitiveServices.SpeechRecognition;
+using System.Windows.Threading;
 
 namespace JobAssist
 {
@@ -64,6 +66,9 @@ namespace JobAssist
         MongoClient client;
         IMongoDatabase ajsDatabase;
 
+        //Microphone Client - Bing Speech
+        private MicrophoneRecognitionClient micClient;
+        private string SubscriptionKey = "a32d46f7532040628570b3ab4e055922";
 
         public string SpeechInput
         {
@@ -291,7 +296,8 @@ namespace JobAssist
                     _synthesizer.Speak("Would you like to save this job?");
    
                     Console.Beep();
-                    _recognizer.Recognize();
+                    //_recognizer.Recognize();
+                    this.micClient.StartMicAndRecognition();
 
                     answer = intepreter.Interpret(answer);
 
@@ -323,7 +329,8 @@ namespace JobAssist
                         _synthesizer.Speak("Would you like to get salary information for this job?");
 
                         Console.Beep();
-                        _recognizer.Recognize();
+                        //_recognizer.Recognize();
+                        this.micClient.StartMicAndRecognition();
 
                         answer = intepreter.Interpret(answer);
 
@@ -366,7 +373,8 @@ namespace JobAssist
                         _synthesizer.Speak("Would you like to hear the next job or begin a new search?");
 
                         Console.Beep();
-                        _recognizer.Recognize();
+                        //_recognizer.Recognize();
+                        this.micClient.StartMicAndRecognition();
 
                         answer = intepreter.Interpret(answer);
 
@@ -396,7 +404,8 @@ namespace JobAssist
                 _synthesizer.Speak("Ok. You would like to quit?");
 
                 Console.Beep();
-                _recognizer.Recognize();
+                //_recognizer.Recognize();
+                this.micClient.StartMicAndRecognition();
 
                 answer = intepreter.Interpret(answer);
 
@@ -454,8 +463,10 @@ namespace JobAssist
             if(e.Bookmark != "7" && !(e.Bookmark == "8" && Convert.ToInt32(jobSearchResults) == 0 ))
             {
                 Console.Beep();
-                _recognizer.Recognize();
+                //_recognizer.Recognize();
 
+                //Bing Speech Recognition
+                this.micClient.StartMicAndRecognition();
             }
 
             if(e.Bookmark == "2") //job search query
@@ -477,6 +488,7 @@ namespace JobAssist
 
             if (e.Bookmark == "1")
             {
+                Debug.WriteLine("answer :: " + answer);
                 //Insert user respose to DB
                 BsonDocument step1UtteranceDocument = new BsonDocument {
                     {"utterance", answer }
@@ -770,7 +782,7 @@ namespace JobAssist
 
         private void InitializeRecognitionEngine()
         {
-            _recognizer = new SpeechRecognitionEngine();
+            /*_recognizer = new SpeechRecognitionEngine();
 
             _recognizer.SetInputToDefaultAudioDevice();
 
@@ -785,7 +797,14 @@ namespace JobAssist
 
             _recognizer.RecognizeCompleted += RecognizeCompleted;
 
-            _recognizer.SpeechRecognized += SpeechRecognized;
+            _recognizer.SpeechRecognized += SpeechRecognized;*/
+
+            //Create Microphone Reco client - Bing Speech
+            this.micClient = SpeechRecognitionServiceFactory.CreateMicrophoneClient(
+                SpeechRecognitionMode.ShortPhrase,
+                "en-US",
+                this.SubscriptionKey);
+            this.micClient.OnResponseReceived += this.OnMicResponseReceivedHandler;
         }
 
         private void SpeechRecognized(object sender, SpeechRecognizedEventArgs e) //this is needed for synchronous listening
@@ -890,6 +909,32 @@ namespace JobAssist
             foreach (var utterance in step8Utterances)
             {
                 Debug.WriteLine(utterance);
+            }
+        }
+
+        //Handler for Mic Response - Bing Speech
+        private void OnMicResponseReceivedHandler(object sender, SpeechResponseEventArgs e)
+        {
+            Debug.WriteLine("Inside OnMicResponseReceivedHandler " + step);
+            this.micClient.EndMicAndRecognition();
+            this.RecognizeResult(e);
+        }
+
+        //Mic Response Results - Bing Speech
+        private void RecognizeResult(SpeechResponseEventArgs e)
+        {
+            Debug.WriteLine("Inside RecognizeResult");
+            if(e.PhraseResponse.Results.Length == 0)
+            {
+                Debug.WriteLine("No Response");
+            }
+            else
+            {
+                for(int i = 0; i < e.PhraseResponse.Results.Length; i++)
+                {
+                    Debug.WriteLine(e.PhraseResponse.Results[i].Confidence + " " + e.PhraseResponse.Results[i].DisplayText);
+                    answer = e.PhraseResponse.Results[i].DisplayText;
+                }
             }
         }
     }
