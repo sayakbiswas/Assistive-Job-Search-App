@@ -51,6 +51,10 @@ namespace JobAssist
 
         public string jobLocation;
 
+        public string lastJob;
+
+        public string lastLocation;
+
         public int firstRun = 0;
 
         public bool searchByLocation = false;
@@ -297,7 +301,10 @@ namespace JobAssist
 
                     if (answer == "Yes" || answer == "yes")
                     {
-                        string saveFile = @"C:\Users\Julian\Desktop\job_assist_" + DateTime.Now.Date.ToString("MMM-dd-yyyy") + ".txt";
+
+                        string path = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+
+                        string saveFile = path + @"\job_assist_" + DateTime.Now.Date.ToString("MMM - dd - yyyy") + ".txt";
 
                         string jobInformation = String.Format("Job title: {0}. Job description: {1}", j.jobtitle, j.snippet);
 
@@ -526,6 +533,7 @@ namespace JobAssist
                 }
                 else
                 {
+                    lastJob = answer;
                     step = 3;
                 }
                 
@@ -561,7 +569,8 @@ namespace JobAssist
                 else
                 {
                     step = 0;
-                    previousStep = 2;
+                    previousStep = 3;
+                    answer = lastJob;
                     helpText = "Try saying yes or no.";
                 }
 
@@ -612,6 +621,7 @@ namespace JobAssist
                 userUtterancesStep5.InsertOneAsync(step5UtteranceDocument);
 
                 Debug.WriteLine("You would like to search for jobs in: " + answer);
+                lastLocation = answer;
                 step = 6;
 
             }
@@ -644,7 +654,8 @@ namespace JobAssist
                 else
                 {
                     step = 0;
-                    previousStep = 5;
+                    previousStep = 6;
+                    answer = lastLocation;
                     helpText = "Try saying yes or no.";
                 }
 
