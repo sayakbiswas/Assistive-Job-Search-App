@@ -69,6 +69,17 @@ namespace JobAssist
         //Microphone Client - Bing Speech
         private MicrophoneRecognitionClient micClient;
         private string SubscriptionKey = "a32d46f7532040628570b3ab4e055922";
+        private bool isMicRecording = false;
+
+        private int jobNumber = 1;
+        private bool shouldSaveJob = false;
+        private bool shouldGetSalaryInfo = false;
+        private bool shouldSpeakJobSalary = false;
+        private bool askForNextJobOrNewSearch = false;
+        private bool shouldSpeakNextJob = false;
+        private string currentJobTitle = "";
+        private string currentJobDescription = "";
+        private string currentJobMedianSalary = "";
 
         public string SpeechInput
         {
@@ -90,7 +101,7 @@ namespace JobAssist
 
             //ActivateRecognitionCommand = new RelayCommand(ActivateRecognition);
             //SpeakCommand = new RelayCommand(Speak);
-            StartDialogueCommand = new RelayCommand(Dialogue);
+            StartDialogueCommand = new RelayCommand(ManageDialogue);
 
 
             //Initialize recognition engine
@@ -453,7 +464,7 @@ namespace JobAssist
 
             _synthesizer.SetOutputToDefaultAudioDevice();
 
-            _synthesizer.BookmarkReached += BookmarkReached;
+            //_synthesizer.BookmarkReached += BookmarkReached;
         }
 
         private void BookmarkReached(object sender, BookmarkReachedEventArgs e)
@@ -804,6 +815,7 @@ namespace JobAssist
                 SpeechRecognitionMode.ShortPhrase,
                 "en-US",
                 this.SubscriptionKey);
+            this.micClient.OnMicrophoneStatus += this.OnMicrophoneStatus;
             this.micClient.OnResponseReceived += this.OnMicResponseReceivedHandler;
         }
 
@@ -912,6 +924,13 @@ namespace JobAssist
             }
         }
 
+        //Handler for Mic Status - Bing Speech
+        private void OnMicrophoneStatus(object sender, MicrophoneEventArgs e)
+        {
+            Debug.WriteLine("e.Recording " + e.Recording);
+            isMicRecording = e.Recording;
+        }
+
         //Handler for Mic Response - Bing Speech
         private void OnMicResponseReceivedHandler(object sender, SpeechResponseEventArgs e)
         {
@@ -934,6 +953,469 @@ namespace JobAssist
                 {
                     Debug.WriteLine(e.PhraseResponse.Results[i].Confidence + " " + e.PhraseResponse.Results[i].DisplayText);
                     answer = e.PhraseResponse.Results[i].DisplayText;
+                }
+                if(!isMicRecording && answer != null && answer.Length != 0)
+                {
+
+                }
+            }
+        }
+
+        //Dialogue Manager - Bing Speech
+        private void ManageDialogue()
+        {
+            //TODO: Put conditions in this section to wait for user response.
+            while(true)
+            {
+                PromptBuilder builder = new PromptBuilder();
+
+                Debug.WriteLine("Build Sentence to Speak ...");
+                builder = BuildDialogue(builder);
+                Debug.WriteLine("Build Sentence to Speak ... Done");
+
+                Debug.WriteLine("Speak Sentence ...");
+                _synthesizer.Speak(builder);
+                Debug.WriteLine("Speak Sentence ... Done");
+
+                Debug.WriteLine("Beeping ...");
+                Console.Beep();
+
+                Debug.WriteLine("Start Speech Recognition ...");
+                this.micClient.StartMicAndRecognition();
+                Debug.WriteLine("Speech Recognition ... Done");
+
+                Debug.WriteLine("Save user utterance to DB ...");
+                SaveUserUtteranceToDB();
+                Debug.WriteLine("Save user utterance to DB ... Done");
+
+                Debug.WriteLine("Interpret user speech ...");
+                answer = intepreter.Interpret(answer);
+                Debug.WriteLine("Interpret user speech ... Done");
+
+                Debug.WriteLine("Handle user intent ...");
+                HandleIntent();
+                Debug.WriteLine("Handle user intent ... Done");
+            }
+        }
+
+        //Dialogue Builder - Bing Speech
+        private PromptBuilder BuildDialogue(PromptBuilder builder)
+        {
+            if(step == 0)
+            {
+                builder.StartSentence();
+                builder.AppendText("I'm sorry, I did not understand what you said.");
+                builder.EndSentence();
+                if (!String.IsNullOrEmpty(helpText))
+                {
+                    builder.StartSentence();
+                    builder.AppendText(helpText);
+                    builder.EndSentence();
+                }
+                step = previousStep;
+            }
+
+            if (step == 1)
+            {
+                if (firstRun == 0)
+                {
+                    builder.AppendText("Welcome to job assist. Speak your responses after the beep. Say quit at any time to exit.");
+                    firstRun++;
+                }
+                builder.StartSentence();
+                builder.AppendText("Would you like to search for jobs today? ");
+                builder.EndSentence();
+            }
+
+            if (step == 2)
+            {
+                builder.StartSentence();
+                builder.AppendText("Ok. What type of job would you like to search for?");
+                builder.EndSentence();
+            }
+
+            if (step == 3)
+            {
+                builder.StartSentence();
+                string jobText = string.Format("You would like to search for {0} jobs? Is that correct?", answer);
+                builder.AppendText(jobText);
+                builder.EndSentence();
+            }
+
+            if (step == 4)
+            {
+                builder.StartSentence();
+                builder.AppendText("Would you like to search for jobs in a specific city or state?");
+                builder.EndSentence();
+            }
+
+            if (step == 5)
+            {
+                builder.StartSentence();
+                builder.AppendText("Ok. What is the city, state or zip code that you would like to search?");
+                builder.EndSentence();
+            }
+
+            if (step == 6)
+            {
+                builder.StartSentence();
+                string jobText = string.Format("Ok, {0}. Is that right?", answer);
+                builder.AppendText(jobText);
+                builder.EndSentence();
+            }
+
+            if (step == 7)
+            {
+                builder.StartSentence();
+                builder.AppendText("I will now search for jobs.");
+                builder.EndSentence();
+            }
+
+            if (step == 8)
+            {
+                builder.StartSentence();
+                string searchResults = string.Format("I found {0} job listings.", jobSearchResults);
+                builder.AppendText(searchResults);
+                builder.EndSentence();
+
+                if (Convert.ToInt32(jobSearchResults) > 0)
+                {
+                    builder.StartSentence();
+                    builder.AppendText("Would you like to review the listings?");
+                    builder.EndSentence();
+                }
+            }
+
+            if (step == 9) //reviewing the job listings 
+            {
+                int count = 1;
+                if((!shouldGetSalaryInfo && !shouldSaveJob && !shouldSpeakJobSalary) || shouldSpeakNextJob)
+                {
+                    foreach (Job j in jobs)
+                    {
+                        if (count == jobNumber)
+                        {
+                            //speak job title
+                            currentJobTitle = j.jobtitle;
+                            builder.StartSentence();
+                            string jobTitle = String.Format("Job number {0}, {1}", jobNumber, j.jobtitle);
+                            builder.AppendText(jobTitle);
+                            builder.EndSentence();
+
+                            //speak snippet/description
+                            currentJobDescription = j.snippet;
+                            builder.StartSentence();
+                            string jobDescription = String.Format("Job description {0}", j.snippet);
+                            builder.AppendText(jobDescription);
+                            builder.EndSentence();
+
+                            builder.StartSentence();
+                            builder.AppendText("Would you like to save this job?");
+                            builder.EndSentence();
+                            jobNumber++;
+                            if(shouldSpeakNextJob)
+                            {
+                                shouldSpeakNextJob = false;
+                            }
+                            break;
+                        }
+                        count++;
+                    }
+                }
+
+                if (shouldSaveJob)
+                {
+                    builder.StartSentence();
+                    builder.AppendText("The job has been saved.");
+                    builder.EndSentence();
+                    shouldSaveJob = false;
+                    shouldGetSalaryInfo = true;
+                }
+
+                if(shouldGetSalaryInfo)
+                {
+                    builder.StartSentence();
+                    builder.AppendText("Would you like to get salary information for this job?");
+                    builder.EndSentence();
+                }
+
+                if(shouldSpeakJobSalary)
+                {
+                    builder.StartSentence();
+                    string salaryInfo = string.Format("The median salary for {0} jobs is {1} dollars.", 
+                        jobType, currentJobMedianSalary);
+                    builder.AppendText(salaryInfo);
+                    builder.EndSentence();
+                    shouldSpeakJobSalary = false;
+                    askForNextJobOrNewSearch = true;
+                }
+
+                if(askForNextJobOrNewSearch)
+                {
+                    builder.StartSentence();
+                    builder.AppendText("Would you like to hear the next job or begin a new search?");
+                    builder.EndSentence();
+                }
+            }
+            return builder;
+        }
+
+        //Save user utterance to DB - Bing Speech
+        private void SaveUserUtteranceToDB()
+        {
+            BsonDocument utteranceDocument = new BsonDocument {
+                    {"utterance", answer }
+                };
+            var userUtterances = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step" + step);
+            userUtterances.InsertOneAsync(utteranceDocument);
+        }
+
+        //Intent Handler - Bing Speech
+        private void HandleIntent()
+        {
+            if(step == 1)
+            {
+                Debug.WriteLine("Would you like to search for jobs today: " + answer);
+                if (answer == "Yes" || answer == "yes")
+                {
+                    step = 2;
+
+                }
+                else if (answer == "No" || answer == "no")
+                {
+                    step = 100;
+                }
+                else if (answer == "Quit" || answer == "quit")
+                {
+                    step = 100;
+                }
+                else
+                {
+                    step = 0;
+                    helpText = "Try saying yes or no.";
+                }
+            }
+
+            if(step == 2)
+            {
+                Debug.WriteLine("What type of job would you like to search for: " + answer);
+                if (answer == "quit")
+                {
+                    step = 100;
+
+                }
+                else
+                {
+                    jobType = answer;
+                    step = 3;
+                }
+            }
+
+            if(step == 3)
+            {
+                Debug.WriteLine("You would like to search for [job type] jobs?: " + answer);
+                if (answer == "Yes" || answer == "yes")
+                {
+                    step = 4;
+
+                }
+                else if (answer == "No" || answer == "no")
+                {
+                    step = 2;
+                }
+                else if (answer == "Quit" || answer == "quit")
+                {
+                    step = 100;
+                }
+                else
+                {
+                    step = 0;
+                    previousStep = 2;
+                    helpText = "Try saying yes or no.";
+                }
+            }
+
+            if(step == 4)
+            {
+                Debug.WriteLine("Would you like to search for jobs in a specific city or state: " + answer);
+                if (answer == "Yes" || answer == "yes")
+                {
+                    searchByLocation = true;
+                    step = 5;
+
+                }
+                else if (answer == "No" || answer == "no")
+                {
+                    step = 7;
+                }
+                else if (answer == "Quit" || answer == "quit")
+                {
+                    step = 100;
+                }
+                else
+                {
+                    step = 0;
+                    previousStep = 4;
+                    helpText = "Try saying yes or no.";
+                }
+            }
+
+            if(step == 5)
+            {
+                Debug.WriteLine("You would like to search for jobs in: " + answer);
+                jobLocation = answer;
+                step = 6;
+            }
+
+            if(step == 6)
+            {
+                Debug.WriteLine("You would like to search for jobs in [place]: " + answer);
+                if (answer == "Yes" || answer == "yes")
+                {
+                    step = 7;
+
+                }
+                else if (answer == "No" || answer == "no")
+                {
+                    step = 5;
+                }
+                else if (answer == "Quit" || answer == "quit")
+                {
+                    step = 100;
+                }
+                else
+                {
+                    step = 0;
+                    previousStep = 5;
+                    helpText = "Try saying yes or no.";
+                }
+            }
+
+            if(step == 7)
+            {
+                //Do the API Call here
+                //NOTE: maximum number of results per query is set at default of 10
+                var client = new RestClient("http://api.indeed.com/ads/apisearch");
+                var request = new RestRequest(Method.GET);
+                request.AddParameter("publisher", "6582450998153239");
+                request.AddParameter("v", "2");
+                request.AddParameter("q", jobType); //job search query string
+
+                if (searchByLocation == true)
+                    request.AddParameter("l", jobLocation);
+
+                IRestResponse response = client.Execute(request);
+                var xml = XDocument.Parse(response.Content);
+                var query = from j in xml.Root.Descendants("result")
+                            select new
+                            {
+                                jobTitle = j.Element("jobtitle").Value,
+                                snippet = j.Element("snippet").Value
+                            };
+                jobSearchResults = Convert.ToString(query.Count());
+                foreach (var o in query)
+                {
+                    //Debug.WriteLine("Job snippet " + o.snippet);
+                    Job j = new Job() { jobtitle = o.jobTitle, snippet = o.snippet };
+                    jobs.Add(j);
+
+                }
+
+                step = 8;
+            }
+
+            if(step == 8)
+            {
+                if (Convert.ToInt32(jobSearchResults) == 0)
+                {
+                    step = 2;
+                }
+                else
+                {
+                    Debug.WriteLine("Would you like to review the listings? " + answer);
+                    if (answer == "Yes" || answer == "yes")
+                    {
+                        step = 9;
+                    }
+                    else if (answer == "No" || answer == "no")
+                    {
+                        step = 7;
+                    }
+                    else if (answer == "Quit" || answer == "quit")
+                    {
+                        step = 100;
+                    }
+                    else
+                    {
+                        step = 0;
+                        previousStep = 7;
+                        helpText = "Try saying yes or no.";
+                    }
+                }
+            }
+
+            if(step == 9)
+            {
+                if(!shouldGetSalaryInfo && !shouldSaveJob && !shouldSpeakJobSalary)
+                {
+                    Debug.WriteLine("Would you like to save this job? " + answer);
+                    if (answer == "Yes" || answer == "yes")
+                    {
+                        string saveFile = @"C:\Users\sayak\Desktop\job_assist_" + DateTime.Now.Date.ToString("MMM-dd-yyyy") + ".txt";
+                        string jobInformation = String.Format("Job title: {0}. Job description: {1}",
+                            currentJobTitle, currentJobDescription);
+                        if (!File.Exists(saveFile))
+                        {
+                            File.WriteAllText(saveFile, jobInformation);
+                        }
+                        else
+                        {
+                            using (StreamWriter file = new StreamWriter(saveFile, true))
+                            {
+                                file.WriteLine(jobInformation);
+                            }
+                        }
+                        shouldSaveJob = true;
+                    }
+                }
+
+                if (shouldGetSalaryInfo && !shouldSpeakJobSalary)
+                {
+                    if (answer == "Yes" || answer == "yes")
+                    {
+                        //Call Glassdoor API to get salary information
+                        var client = new RestClient("http://www.glassdoor.com/api/json/search/jobProgression.htm");
+                        var request = new RestRequest(Method.GET);
+                        request.AddParameter("t.p", "102234");
+                        request.AddParameter("t.k", "egSVvV0B2Jg");
+                        request.AddParameter("format", "json");
+                        request.AddParameter("v", "1");
+                        request.AddParameter("jobTitle", jobType);
+                        request.AddParameter("countryId", "1");
+
+                        IRestResponse response = client.Execute(request);
+                        JObject jobsData = JObject.Parse(response.Content);
+                        currentJobMedianSalary = (string)jobsData["response"]["payMedian"];
+                        shouldSpeakJobSalary = true;
+                        shouldGetSalaryInfo = false;
+                    }
+                }
+
+                if(askForNextJobOrNewSearch)
+                {
+                    if (answer == "No" || answer == "no" || answer == "NewSearch" || answer == "new search" 
+                        || answer == "begin a new search")
+                    {
+                        step = 2;
+                    }
+                    else if (answer == "quit" || answer == "Quit")
+                    {
+                        step = 100;
+                    } else
+                    {
+                        shouldSpeakNextJob = true;
+                    }
+                    askForNextJobOrNewSearch = false;
                 }
             }
         }
