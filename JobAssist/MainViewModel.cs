@@ -77,9 +77,12 @@ namespace JobAssist
         private bool shouldSpeakJobSalary = false;
         private bool askForNextJobOrNewSearch = false;
         private bool shouldSpeakNextJob = false;
+        private bool shouldSayQuitMessage = false;
         private string currentJobTitle = "";
         private string currentJobDescription = "";
         private string currentJobMedianSalary = "";
+        private bool systemTurn = true;
+        private bool userTurn = false;
 
         public string SpeechInput
         {
@@ -935,8 +938,9 @@ namespace JobAssist
         private void OnMicResponseReceivedHandler(object sender, SpeechResponseEventArgs e)
         {
             Debug.WriteLine("Inside OnMicResponseReceivedHandler " + step);
-            this.micClient.EndMicAndRecognition();
+            //this.micClient.EndMicAndRecognition();
             this.RecognizeResult(e);
+            userTurn = true;
         }
 
         //Mic Response Results - Bing Speech
@@ -967,34 +971,55 @@ namespace JobAssist
             //TODO: Put conditions in this section to wait for user response.
             while(true)
             {
-                PromptBuilder builder = new PromptBuilder();
+                if(!isMicRecording && systemTurn)
+                {
+                    PromptBuilder builder = new PromptBuilder();
 
-                Debug.WriteLine("Build Sentence to Speak ...");
-                builder = BuildDialogue(builder);
-                Debug.WriteLine("Build Sentence to Speak ... Done");
+                    Debug.WriteLine("Build Sentence to Speak ...");
+                    builder = BuildDialogue(builder);
+                    Debug.WriteLine("Build Sentence to Speak ... Done");
 
-                Debug.WriteLine("Speak Sentence ...");
-                _synthesizer.Speak(builder);
-                Debug.WriteLine("Speak Sentence ... Done");
+                    Debug.WriteLine("Speak Sentence ...");
+                    _synthesizer.Speak(builder);
+                    Debug.WriteLine("Speak Sentence ... Done");
 
-                Debug.WriteLine("Beeping ...");
-                Console.Beep();
+                    if (step == 100 && shouldSayQuitMessage)
+                    {
+                        getAllUtterancesFromDB();
+                        Debug.WriteLine("Quitting ...");
+                        Environment.Exit(0);
+                    }
 
-                Debug.WriteLine("Start Speech Recognition ...");
-                this.micClient.StartMicAndRecognition();
-                Debug.WriteLine("Speech Recognition ... Done");
+                    Debug.WriteLine("Beeping ...");
+                    Console.Beep();
 
-                Debug.WriteLine("Save user utterance to DB ...");
-                SaveUserUtteranceToDB();
-                Debug.WriteLine("Save user utterance to DB ... Done");
+                    systemTurn = false;
 
-                Debug.WriteLine("Interpret user speech ...");
-                answer = intepreter.Interpret(answer);
-                Debug.WriteLine("Interpret user speech ... Done");
+                    Debug.WriteLine("Start Speech Recognition ...");
+                    this.micClient.StartMicAndRecognition();
+                }
 
-                Debug.WriteLine("Handle user intent ...");
-                HandleIntent();
-                Debug.WriteLine("Handle user intent ... Done");
+                if(!isMicRecording && userTurn)
+                {
+                    Debug.WriteLine("Speech Recognition ... Done");
+
+                    Debug.WriteLine("Save user utterance to DB ...");
+                    SaveUserUtteranceToDB();
+                    Debug.WriteLine("Save user utterance to DB ... Done");
+
+                    if(step == 1 || step == 3 || step == 4 || step == 6 || step == 8)
+                    {
+                        Debug.WriteLine("Interpret user speech ...");
+                        answer = intepreter.Interpret(answer);
+                        Debug.WriteLine("Interpret user speech ... Done");
+                    }
+
+                    Debug.WriteLine("Handle user intent ...");
+                    HandleIntent();
+                    Debug.WriteLine("Handle user intent ... Done");
+                    systemTurn = true;
+                    userTurn = false;
+                }
             }
         }
 
@@ -1157,17 +1182,37 @@ namespace JobAssist
                     builder.EndSentence();
                 }
             }
+
+            if(step == 100)
+            {
+                if(!shouldSayQuitMessage)
+                {
+                    builder.StartSentence();
+                    builder.AppendText("Ok. You would like to quit?");
+                    builder.EndSentence();
+                }
+                else
+                {
+                    builder.StartSentence();
+                    builder.AppendText("Thank you for using Job Assist. Goodbye.");
+                    builder.EndSentence();
+                }
+            }
             return builder;
         }
 
         //Save user utterance to DB - Bing Speech
         private void SaveUserUtteranceToDB()
         {
-            BsonDocument utteranceDocument = new BsonDocument {
+            Debug.WriteLine("Utterance to write in DB :: " + answer);
+            if(!String.IsNullOrEmpty(answer))
+            {
+                BsonDocument utteranceDocument = new BsonDocument {
                     {"utterance", answer }
                 };
-            var userUtterances = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step" + step);
-            userUtterances.InsertOneAsync(utteranceDocument);
+                var userUtterances = ajsDatabase.GetCollection<BsonDocument>("user-utterances-step" + step);
+                userUtterances.InsertOneAsync(utteranceDocument);
+            }
         }
 
         //Intent Handler - Bing Speech
@@ -1195,8 +1240,7 @@ namespace JobAssist
                     helpText = "Try saying yes or no.";
                 }
             }
-
-            if(step == 2)
+            else if(step == 2)
             {
                 Debug.WriteLine("What type of job would you like to search for: " + answer);
                 if (answer == "quit")
@@ -1210,8 +1254,7 @@ namespace JobAssist
                     step = 3;
                 }
             }
-
-            if(step == 3)
+            else if(step == 3)
             {
                 Debug.WriteLine("You would like to search for [job type] jobs?: " + answer);
                 if (answer == "Yes" || answer == "yes")
@@ -1234,8 +1277,7 @@ namespace JobAssist
                     helpText = "Try saying yes or no.";
                 }
             }
-
-            if(step == 4)
+            else if(step == 4)
             {
                 Debug.WriteLine("Would you like to search for jobs in a specific city or state: " + answer);
                 if (answer == "Yes" || answer == "yes")
@@ -1259,15 +1301,13 @@ namespace JobAssist
                     helpText = "Try saying yes or no.";
                 }
             }
-
-            if(step == 5)
+            else if(step == 5)
             {
                 Debug.WriteLine("You would like to search for jobs in: " + answer);
                 jobLocation = answer;
                 step = 6;
             }
-
-            if(step == 6)
+            else if(step == 6)
             {
                 Debug.WriteLine("You would like to search for jobs in [place]: " + answer);
                 if (answer == "Yes" || answer == "yes")
@@ -1290,8 +1330,7 @@ namespace JobAssist
                     helpText = "Try saying yes or no.";
                 }
             }
-
-            if(step == 7)
+            else if(step == 7)
             {
                 //Do the API Call here
                 //NOTE: maximum number of results per query is set at default of 10
@@ -1323,8 +1362,7 @@ namespace JobAssist
 
                 step = 8;
             }
-
-            if(step == 8)
+            else if(step == 8)
             {
                 if (Convert.ToInt32(jobSearchResults) == 0)
                 {
@@ -1353,8 +1391,7 @@ namespace JobAssist
                     }
                 }
             }
-
-            if(step == 9)
+            else if(step == 9)
             {
                 if(!shouldGetSalaryInfo && !shouldSaveJob && !shouldSpeakJobSalary)
                 {
@@ -1416,6 +1453,17 @@ namespace JobAssist
                         shouldSpeakNextJob = true;
                     }
                     askForNextJobOrNewSearch = false;
+                }
+            }
+            else if(step == 100)
+            {
+                if (answer == "Yes" || answer == "yes")
+                {
+                    shouldSayQuitMessage = true;
+                }
+                else
+                {
+                    step = 2;
                 }
             }
         }
