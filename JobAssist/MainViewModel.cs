@@ -61,6 +61,9 @@ namespace JobAssist
 
         public Interpreter intepreter = new Interpreter();
 
+        public string lastJob;
+        public string lastLocation;
+
         //MongoDB URI
         private String mongoURI = "mongodb://ajs:ajs@ds050189.mlab.com:50189/assisstive-job-search";
         MongoClient client;
@@ -1251,6 +1254,7 @@ namespace JobAssist
                 else
                 {
                     jobType = answer;
+                    lastJob = answer;
                     step = 3;
                 }
             }
@@ -1273,7 +1277,8 @@ namespace JobAssist
                 else
                 {
                     step = 0;
-                    previousStep = 2;
+                    previousStep = 3;
+                    answer = lastJob;
                     helpText = "Try saying yes or no.";
                 }
             }
@@ -1305,6 +1310,7 @@ namespace JobAssist
             {
                 Debug.WriteLine("You would like to search for jobs in: " + answer);
                 jobLocation = answer;
+                lastLocation = answer;
                 step = 6;
             }
             else if(step == 6)
@@ -1326,7 +1332,8 @@ namespace JobAssist
                 else
                 {
                     step = 0;
-                    previousStep = 5;
+                    previousStep = 6;
+                    answer = lastLocation;
                     helpText = "Try saying yes or no.";
                 }
             }
@@ -1398,7 +1405,8 @@ namespace JobAssist
                     Debug.WriteLine("Would you like to save this job? " + answer);
                     if (answer == "Yes" || answer == "yes")
                     {
-                        string saveFile = @"C:\Users\sayak\Desktop\job_assist_" + DateTime.Now.Date.ToString("MMM-dd-yyyy") + ".txt";
+                        string path = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                        string saveFile = path + @"\job_assist_" + DateTime.Now.Date.ToString("MMM - dd - yyyy") + ".txt";
                         string jobInformation = String.Format("Job title: {0}. Job description: {1}",
                             currentJobTitle, currentJobDescription);
                         if (!File.Exists(saveFile))
