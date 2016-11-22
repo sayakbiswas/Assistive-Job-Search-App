@@ -402,7 +402,7 @@ namespace JobAssist
                         step = 2;
                         Dialogue();
                     }
-                    else if(answer == "quit" || answer == "Quit")
+                    else if(answer.Contains("quit") || answer.Contains("Quit"))
                     {
                         step = 100;
                         Dialogue();
@@ -525,7 +525,7 @@ namespace JobAssist
                 {
                     step = 100;
                 }
-                else if (answer == "Quit" || answer == "quit")
+                else if (answer.Contains("Quit") || answer.Contains("quit"))
                 {
                     step = 100;
                 }
@@ -548,7 +548,7 @@ namespace JobAssist
                 userUtterancesStep2.InsertOneAsync(step2UtteranceDocument);
 
                 Debug.WriteLine("What type of job would you like to search for: " + answer);
-                if(answer == "quit")
+                if(answer.Contains("quit") || answer.Contains("Quit"))
                 {
                     step = 100;
 
@@ -583,7 +583,7 @@ namespace JobAssist
                 {
                     step = 2;
                 }
-                else if (answer == "Quit" || answer == "quit")
+                else if (answer.Contains("Quit") || answer.Contains("quit"))
                 {
                     step = 100;
                 }
@@ -618,7 +618,7 @@ namespace JobAssist
                 {
                     step = 7;
                 }
-                else if (answer == "Quit" || answer == "quit")
+                else if (answer.Contains("Quit") || answer.Contains("quit"))
                 {
                     step = 100;
                 }
@@ -666,7 +666,7 @@ namespace JobAssist
                 {
                     step = 5;
                 }
-                else if (answer == "Quit" || answer == "quit")
+                else if (answer.Contains("Quit") || answer.Contains("quit"))
                 {
                     step = 100;
                 }
@@ -750,7 +750,7 @@ namespace JobAssist
                     {
                         step = 7;
                     }
-                    else if (answer == "Quit" || answer == "quit")
+                    else if (answer.Contains("Quit") || answer.Contains("quit"))
                     {
                         step = 100;
                     }
@@ -953,6 +953,7 @@ namespace JobAssist
             if(e.PhraseResponse.Results.Length == 0)
             {
                 Debug.WriteLine("No Response");
+                answer = "";
             }
             else
             {
@@ -961,17 +962,12 @@ namespace JobAssist
                     Debug.WriteLine(e.PhraseResponse.Results[i].Confidence + " " + e.PhraseResponse.Results[i].DisplayText);
                     answer = e.PhraseResponse.Results[i].DisplayText;
                 }
-                if(!isMicRecording && answer != null && answer.Length != 0)
-                {
-
-                }
             }
         }
 
         //Dialogue Manager - Bing Speech
         private void ManageDialogue()
         {
-            //TODO: Put conditions in this section to wait for user response.
             while(true)
             {
                 if(!isMicRecording && systemTurn)
@@ -1006,11 +1002,18 @@ namespace JobAssist
                 {
                     Debug.WriteLine("Speech Recognition ... Done");
 
+                    if(String.IsNullOrEmpty(answer) && step != 7)
+                    {
+                        systemTurn = true;
+                        userTurn = false;
+                        continue;
+                    }
+
                     Debug.WriteLine("Save user utterance to DB ...");
                     SaveUserUtteranceToDB();
                     Debug.WriteLine("Save user utterance to DB ... Done");
 
-                    if(step == 1 || step == 3 || step == 4 || step == 6 || step == 8)
+                    if(step != 2 && step != 5 && step != 7)
                     {
                         Debug.WriteLine("Interpret user speech ...");
                         answer = intepreter.Interpret(answer);
@@ -1051,7 +1054,7 @@ namespace JobAssist
                     firstRun++;
                 }
                 builder.StartSentence();
-                builder.AppendText("Would you like to search for jobs today? ");
+                builder.AppendText("Would you like to search for jobs today?");
                 builder.EndSentence();
             }
 
@@ -1117,7 +1120,8 @@ namespace JobAssist
             if (step == 9) //reviewing the job listings 
             {
                 int count = 1;
-                if((!shouldGetSalaryInfo && !shouldSaveJob && !shouldSpeakJobSalary) || shouldSpeakNextJob)
+                if((!shouldGetSalaryInfo && !shouldSaveJob && !shouldSpeakJobSalary && !askForNextJobOrNewSearch) 
+                    || shouldSpeakNextJob)
                 {
                     foreach (Job j in jobs)
                     {
@@ -1227,13 +1231,12 @@ namespace JobAssist
                 if (answer == "Yes" || answer == "yes")
                 {
                     step = 2;
-
                 }
                 else if (answer == "No" || answer == "no")
                 {
                     step = 100;
                 }
-                else if (answer == "Quit" || answer == "quit")
+                else if (answer.Contains("Quit") || answer.Contains("quit"))
                 {
                     step = 100;
                 }
@@ -1246,10 +1249,9 @@ namespace JobAssist
             else if(step == 2)
             {
                 Debug.WriteLine("What type of job would you like to search for: " + answer);
-                if (answer == "quit")
+                if (answer.Contains("quit") || answer.Contains("Quit"))
                 {
                     step = 100;
-
                 }
                 else
                 {
@@ -1264,13 +1266,12 @@ namespace JobAssist
                 if (answer == "Yes" || answer == "yes")
                 {
                     step = 4;
-
                 }
                 else if (answer == "No" || answer == "no")
                 {
                     step = 2;
                 }
-                else if (answer == "Quit" || answer == "quit")
+                else if (answer.Contains("Quit") || answer.Contains("quit"))
                 {
                     step = 100;
                 }
@@ -1295,7 +1296,7 @@ namespace JobAssist
                 {
                     step = 7;
                 }
-                else if (answer == "Quit" || answer == "quit")
+                else if (answer.Contains("Quit") || answer.Contains("quit"))
                 {
                     step = 100;
                 }
@@ -1325,7 +1326,7 @@ namespace JobAssist
                 {
                     step = 5;
                 }
-                else if (answer == "Quit" || answer == "quit")
+                else if (answer.Contains("Quit") || answer.Contains("quit"))
                 {
                     step = 100;
                 }
@@ -1364,7 +1365,6 @@ namespace JobAssist
                     //Debug.WriteLine("Job snippet " + o.snippet);
                     Job j = new Job() { jobtitle = o.jobTitle, snippet = o.snippet };
                     jobs.Add(j);
-
                 }
 
                 step = 8;
@@ -1386,7 +1386,7 @@ namespace JobAssist
                     {
                         step = 7;
                     }
-                    else if (answer == "Quit" || answer == "quit")
+                    else if (answer.Contains("Quit") || answer.Contains("quit"))
                     {
                         step = 100;
                     }
@@ -1400,11 +1400,12 @@ namespace JobAssist
             }
             else if(step == 9)
             {
-                if(!shouldGetSalaryInfo && !shouldSaveJob && !shouldSpeakJobSalary)
+                if(!shouldGetSalaryInfo && !shouldSaveJob && !shouldSpeakJobSalary && !askForNextJobOrNewSearch)
                 {
                     Debug.WriteLine("Would you like to save this job? " + answer);
                     if (answer == "Yes" || answer == "yes")
                     {
+                        Debug.WriteLine("Saving Job ...");
                         string path = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
                         string saveFile = path + @"\job_assist_" + DateTime.Now.Date.ToString("MMM - dd - yyyy") + ".txt";
                         string jobInformation = String.Format("Job title: {0}. Job description: {1}",
@@ -1422,12 +1423,18 @@ namespace JobAssist
                         }
                         shouldSaveJob = true;
                     }
+                    else
+                    {
+                        shouldSaveJob = false;
+                        shouldGetSalaryInfo = true;
+                    }
                 }
-
-                if (shouldGetSalaryInfo && !shouldSpeakJobSalary)
+                else if (shouldGetSalaryInfo && !shouldSpeakJobSalary)
                 {
+                    Debug.WriteLine("Getting salary info?");
                     if (answer == "Yes" || answer == "yes")
                     {
+                        Debug.WriteLine("Yup, Getting salary info");
                         //Call Glassdoor API to get salary information
                         var client = new RestClient("http://www.glassdoor.com/api/json/search/jobProgression.htm");
                         var request = new RestRequest(Method.GET);
@@ -1444,19 +1451,25 @@ namespace JobAssist
                         shouldSpeakJobSalary = true;
                         shouldGetSalaryInfo = false;
                     }
+                    else
+                    {
+                        shouldGetSalaryInfo = false;
+                        shouldSpeakJobSalary = false;
+                        askForNextJobOrNewSearch = true;
+                    }
                 }
-
-                if(askForNextJobOrNewSearch)
+                else if(askForNextJobOrNewSearch)
                 {
                     if (answer == "No" || answer == "no" || answer == "NewSearch" || answer == "new search" 
                         || answer == "begin a new search")
                     {
                         step = 2;
                     }
-                    else if (answer == "quit" || answer == "Quit")
+                    else if (answer.Contains("quit") || answer.Contains("Quit"))
                     {
                         step = 100;
-                    } else
+                    }
+                    else
                     {
                         shouldSpeakNextJob = true;
                     }
