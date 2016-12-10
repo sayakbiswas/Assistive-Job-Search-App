@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Train Job Types</title>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
+    <input type="file" id="fileButton" onchange="readFile(event)"/>
+    <button value="train" id="train-button">Train</button>
+    <button value="train" id="phraselist-button">Update PhraseList</button>
+</head>
+<body>
+
+<script type="text/javascript">
+    var file;
+    function readFile(e) {
+        console.log("reading files");
+        file = e.target.files[0];
+    }
+    $("#train-button").click(function(e) {
+        var params = {
+            // Request parameters
+        };
+        var jobsList = [];
+        var reader = new FileReader();
+        reader.onloadend = function() {
+			var fileContent = reader.result;
+            //console.log(fileContent);
+            jobsList = fileContent.split("\n");
+            console.log("job types ", jobsList);
+            jobsList.forEach(function(element){
+                if(element) {
+                    var obj = new Object();
+                    obj.ExampleText = element.replace("\r", "");
+                    obj.SelectedIntentName = "None";
+                    var subObj = new Object();
+                    subObj.EntityType = "JobType";
+                    subObj.StartToken = 0;
+                    subObj.EndToken = element.length - 1;
+                    obj.EntityLabels = [subObj];
+                    var jsonString = JSON.stringify(obj);
+                    console.log(jsonString);
+                    $.ajax({
+                        url: "https://api.projectoxford.ai/luis/v1.0/prog/apps/49667a22-4f58-4422-a8fe-7d23c5b902e4/example?" + $.param(params),
+                        beforeSend: function(xhrObj){
+                            // Request headers
+                            xhrObj.setRequestHeader("Content-Type","application/json");
+                            xhrObj.setRequestHeader("Ocp-Apim-Subscription-Key","31e802b0448c49f9bfcdfba4fc0f040c");
+                        },
+                        type: "POST",
+                        // Request body
+                        data: jsonString,
+                        async: false
+                    })
+                    .done(function(data) {
+                        alert("success");
+                    })
+                    .fail(function() {
+                        alert("error");
+                    });
+                }
+            }); 
+		};
+        reader.readAsText(file);
+    });
+
+     $("#phraselist-button").click(function(e) {
+        var params = {
+            // Request parameters
+        };
+        var jobsList = [];
+        var reader = new FileReader();
+        reader.onloadend = function() {
+			var fileContent = reader.result;
+            //console.log(fileContent);
+            jobsList = fileContent.split("\n");
+            console.log("job types ", jobsList);
+            var obj = new Object();
+            obj.Id = 52179;
+            obj.Name = "JobType";
+            var phraselist;
+            jobsList.forEach(function(element){
+                if(element) {
+                    phraselist += element.replace("\r", "") + ", ";
+                }
+            });
+            obj.Phrases = phraselist;
+            obj.IsActive = true;
+            obj.Mode = "Exchangeable";
+            obj.Editable = true;
+            var jsonString = JSON.stringify(obj);
+            console.log(jsonString);
+            $.ajax({
+                url: "https://api.projectoxford.ai/luis/v1.0/prog/apps/49667a22-4f58-4422-a8fe-7d23c5b902e4/phraselists/52179",
+                beforeSend: function(xhrObj){
+                    // Request headers
+                    xhrObj.setRequestHeader("Content-Type","application/json");
+                    xhrObj.setRequestHeader("Ocp-Apim-Subscription-Key","31e802b0448c49f9bfcdfba4fc0f040c");
+                },
+                type: "PUT",
+                // Request body
+                data: jsonString,
+                async: false
+            })
+            .done(function(data) {
+                alert("success");
+            })
+            .fail(function() {
+                alert("error");
+            });
+		};
+        reader.readAsText(file);
+    });
+</script>
+</body>
+</html>

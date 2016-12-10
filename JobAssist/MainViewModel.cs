@@ -379,7 +379,7 @@ namespace JobAssist
             if (step == 7)
             {
                 builder.StartSentence();
-                builder.AppendText("Great! I will now search for jobs. Please hold on.");
+                builder.AppendText("Okay! I will now search for jobs. Please hold on.");
                 builder.EndSentence();
             }
 
@@ -710,7 +710,8 @@ namespace JobAssist
                     }
                     else if (answer == "No" || answer == "no")
                     {
-                        step = 7;
+                        step = 9;
+                        askForNextJobOrNewSearch = true;
                     }
                     else if (answer.Contains("Quit") || answer.Contains("quit"))
                     {
@@ -718,8 +719,8 @@ namespace JobAssist
                     }
                     else
                     {
+                        previousStep = step;
                         step = 0;
-                        previousStep = 7;
                         helpText = "Try saying yes or no.";
                     }
                 }
