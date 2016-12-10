@@ -349,7 +349,7 @@ namespace JobAssist
             if (step == 3)
             {
                 builder.StartSentence();
-                string jobText = string.Format("You would like to search for {0} jobs? Is that correct?", answer);
+                string jobText = string.Format("You would like to search for {0} jobs? Is that correct?", answer.Replace(".", ""));
                 builder.AppendText(jobText);
                 builder.EndSentence();
             }
@@ -379,7 +379,7 @@ namespace JobAssist
             if (step == 7)
             {
                 builder.StartSentence();
-                builder.AppendText("I will now search for jobs.");
+                builder.AppendText("Great! I will now search for jobs. Please hold on.");
                 builder.EndSentence();
             }
 
@@ -551,6 +551,7 @@ namespace JobAssist
                 Debug.WriteLine("What type of job would you like to search for: " + answer);
                 if(String.IsNullOrEmpty(answer) || noResponse)
                 {
+                    previousStep = step;
                     step = 0;
                     helpText = "Try to speak your responses a little bit louder.";
                 }
