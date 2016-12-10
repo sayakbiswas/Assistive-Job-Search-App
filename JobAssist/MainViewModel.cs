@@ -532,6 +532,7 @@ namespace JobAssist
             {
                 Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
                 string answerWithoutInterpretation = answer;
+                answer = "";
                 foreach(String entityKey in entities.Keys)
                 {
                     if(entityKey.Equals("JobType"))
@@ -544,16 +545,23 @@ namespace JobAssist
                         }
                     }
                 }
-                if (String.IsNullOrEmpty(answer))
+                if (String.IsNullOrEmpty(answer) && answerWithoutInterpretation.Length < 4)
                 {
                     answer = answerWithoutInterpretation;
                 }
                 Debug.WriteLine("What type of job would you like to search for: " + answer);
-                if(String.IsNullOrEmpty(answer) || noResponse)
+                if(String.IsNullOrEmpty(answer))
                 {
                     previousStep = step;
                     step = 0;
-                    helpText = "Try to speak your responses a little bit louder.";
+                    if(noResponse)
+                    {
+                        helpText = "Try to speak your responses a little bit louder.";
+                    }
+                    else if(answerWithoutInterpretation.Length >= 4)
+                    {
+                        helpText = "Please try to say the job type in one or two words.";
+                    }
                 }
                 else if(answer.Contains("quit") || answer.Contains("Quit"))
                 {
@@ -813,9 +821,15 @@ namespace JobAssist
                 {
                     shouldSayQuitMessage = true;
                 }
-                else
+                else if(answer.Equals("No") || answer.Equals("no"))
                 {
                     step = 2;
+                }
+                else
+                {
+                    previousStep = 100;
+                    step = 0;
+                    helpText = "Try saying yes or no.";
                 }
                 if (String.IsNullOrEmpty(answer) || noResponse)
                 {
