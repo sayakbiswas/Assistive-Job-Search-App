@@ -22,6 +22,7 @@ namespace JobAssist
             var request = new RestRequest(Method.GET);
             request.AddParameter("q", utterance);
             IRestResponse response = client.Execute(request);
+            Debug.WriteLine("Response from LUIS :: " + response.Content);
             JObject responseData = JObject.Parse(response.Content);
             Debug.WriteLine("Done");
             return responseData;
@@ -30,32 +31,41 @@ namespace JobAssist
         public string getIntent(JObject responseData)
         {
             Debug.Write("Getting user intent ... ");
-            string intent = (string)responseData["intents"][0]["intent"];
+            string intent = "";
+            if (responseData != null)
+            {
+                intent = (string)responseData["intents"][0]["intent"];
+            }
             Debug.WriteLine("Done");
-            return intent;
+            Debug.WriteLine("User intent is " + intent);
+            return intent == null ? "" : intent;
         }
 
         public Dictionary<string, string> getEntities(JObject responseData)
         {
             Debug.Write("Getting entities from speech ... ");
             Dictionary<string, string> entities = new Dictionary<string, string>();
-            foreach(JObject entity in responseData["entities"].Children<JObject>())
+            if(responseData != null)
             {
-                string entityType = "";
-                string entityValue = "";
-                foreach (JProperty property in entity.Properties())
+                foreach (JObject entity in responseData["entities"].Children<JObject>())
                 {
-                    if(property.Name.Equals("type"))
+                    string entityType = "";
+                    string entityValue = "";
+                    foreach (JProperty property in entity.Properties())
                     {
-                        entityType = (string)property.Value;
-                    }
+                        Debug.WriteLine("property " + property.Name + " value " + property.Value);
+                        if (property.Name.Equals("type"))
+                        {
+                            entityType = (string)property.Value;
+                        }
 
-                    if(property.Name.Equals("entity"))
-                    {
-                        entityValue = (string)property.Value;
+                        if (property.Name.Equals("entity"))
+                        {
+                            entityValue = (string)property.Value;
+                        }
                     }
+                    entities.Add(entityType, entityValue);
                 }
-                entities.Add(entityType, entityValue);
             }
             Debug.WriteLine("Done");
             return entities;

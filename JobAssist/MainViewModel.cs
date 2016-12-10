@@ -27,7 +27,6 @@ namespace JobAssist
     public class MainViewModel : ViewModelBase, IDisposable
     {
         private SpeechSynthesizer _synthesizer;
-        private SpeechRecognitionEngine _recognizer;
         public ICommand ActivateRecognitionCommand { get; private set; }
         public ICommand SpeakCommand { get; private set; }
         public ICommand StartDialogueCommand { get; private set; }
@@ -70,6 +69,7 @@ namespace JobAssist
         private bool systemTurn = true;
         private bool userTurn = false;
         private JObject interpretedSpeech;
+        private bool noResponse = false;
 
         public string SpeechInput
         {
@@ -112,7 +112,6 @@ namespace JobAssist
             {
                 Debug.WriteLine("Speak Completed");
                 Console.Beep();
-                _recognizer.RecognizeAsync();
                 step = 0;
             }
 
@@ -138,7 +137,7 @@ namespace JobAssist
             //Create Microphone Reco client - Bing Speech
             this.micClient = SpeechRecognitionServiceFactory.CreateMicrophoneClient(
                 SpeechRecognitionMode.ShortPhrase,
-                "en-US",
+                "en-IN",
                 this.SubscriptionKey);
             this.micClient.OnMicrophoneStatus += this.OnMicrophoneStatus;
             this.micClient.OnResponseReceived += this.OnMicResponseReceivedHandler;
@@ -230,20 +229,23 @@ namespace JobAssist
         //Mic Response Results - Bing Speech
         private void RecognizeResult(SpeechResponseEventArgs e)
         {
-            Debug.WriteLine("Inside RecognizeResult");
+            Debug.Write("Recognizing Speech ... ");
             if(e.PhraseResponse.Results.Length == 0)
             {
                 Debug.WriteLine("No Response");
+                noResponse = true;
                 answer = "";
             }
             else
             {
+                noResponse = false;
                 for(int i = 0; i < e.PhraseResponse.Results.Length; i++)
                 {
                     Debug.WriteLine(e.PhraseResponse.Results[i].Confidence + " " + e.PhraseResponse.Results[i].DisplayText);
                     answer = e.PhraseResponse.Results[i].DisplayText;
                 }
             }
+            Debug.WriteLine("Done");
         }
 
         //Dialogue Manager - Bing Speech
@@ -259,7 +261,7 @@ namespace JobAssist
                     builder = BuildDialogue(builder);
                     Debug.WriteLine("Done");
 
-                    Debug.Write("Speak Sentence ... ");
+                    Debug.Write("Speak Sentence ... " + step);
                     _synthesizer.Speak(builder);
                     Debug.WriteLine("Done");
 
@@ -283,21 +285,21 @@ namespace JobAssist
                 {
                     Debug.WriteLine("Done");
 
-                    if(String.IsNullOrEmpty(answer) && step != 7)
+                    /*if(String.IsNullOrEmpty(answer) && step != 7)
                     {
                         systemTurn = true;
                         userTurn = false;
                         continue;
-                    }
+                    }*/
 
                     Debug.Write("Save user utterance to DB ... ");
                     SaveUserUtteranceToDB();
                     Debug.WriteLine("Done");
 
-                    if(step != 2 && step != 5 && step != 7)
-                    {
+                    //if(step != 2 && step != 5 && step != 7)
+                    //{
                         interpretedSpeech = interpreter.Interpret(answer);
-                    }
+                    //}
 
                     Debug.Write("Handle user intent ... ");
                     HandleIntent(interpretedSpeech);
@@ -528,8 +530,31 @@ namespace JobAssist
             }
             else if(step == 2)
             {
+                Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
+                string answerWithoutInterpretation = answer;
+                foreach(String entityKey in entities.Keys)
+                {
+                    if(entityKey.Equals("JobType"))
+                    {
+                        Debug.WriteLine("entityKey " + entityKey);
+                        if (entities.TryGetValue(entityKey, out answer))
+                        {
+                            Debug.WriteLine("entity " + answer);
+                            break;
+                        }
+                    }
+                }
+                if (String.IsNullOrEmpty(answer))
+                {
+                    answer = answerWithoutInterpretation;
+                }
                 Debug.WriteLine("What type of job would you like to search for: " + answer);
-                if (answer.Contains("quit") || answer.Contains("Quit"))
+                if(String.IsNullOrEmpty(answer) || noResponse)
+                {
+                    step = 0;
+                    helpText = "Try to speak your responses a little bit louder.";
+                }
+                else if(answer.Contains("quit") || answer.Contains("Quit"))
                 {
                     step = 100;
                 }
@@ -591,15 +616,21 @@ namespace JobAssist
             else if(step == 5)
             {
                 Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
+                Debug.WriteLine("entities length " + entities.Count);
+                string answerWithoutInterpretation = answer;
                 foreach(String entityKey in entities.Keys)
                 {
-                    if(entityKey.Equals("LocationEntity") || entityKey.Equals("geography"))
+                    if(entityKey.Equals("LocationEntity") || entityKey.Contains("geography"))
                     {
                         if(entities.TryGetValue(entityKey, out answer))
                         {
                             break;
                         }
                     }
+                }
+                if(String.IsNullOrEmpty(answer))
+                {
+                    answer = answerWithoutInterpretation;
                 }
                 Debug.WriteLine("You would like to search for jobs in: " + answer);
                 jobLocation = answer;
@@ -774,6 +805,8 @@ namespace JobAssist
             }
             else if(step == 100)
             {
+                answer = interpreter.getIntent(interpretedSpeech);
+                Debug.WriteLine("Ok, You would like to quit?" + answer);
                 if (answer == "Yes" || answer == "yes")
                 {
                     shouldSayQuitMessage = true;
@@ -781,6 +814,12 @@ namespace JobAssist
                 else
                 {
                     step = 2;
+                }
+                if (String.IsNullOrEmpty(answer) || noResponse)
+                {
+                    previousStep = 100;
+                    step = 0;
+                    helpText = "Try to speak your response a little bit louder.";
                 }
             }
         }
