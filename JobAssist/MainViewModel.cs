@@ -34,7 +34,7 @@ namespace JobAssist
         private string _speechInput;
         public int step = 1; //Step of dialogue process
         public int previousStep = 1;
-        public string answer;
+        public string answer = "";
         public string helpText;
         public string jobSearchResults;
         public string jobType;
@@ -70,6 +70,8 @@ namespace JobAssist
         private bool userTurn = false;
         private JObject interpretedSpeech;
         private bool noResponse = false;
+        private bool foundJobType = false;
+        private bool foundJobLoc = false;
 
         public string SpeechInput
         {
@@ -83,15 +85,29 @@ namespace JobAssist
             set { Set(ref _recognizedText, value);  }
         }
 
+        private string _selectedLocale = "en-US";
+        public string SelectedLocale
+        {
+            get { return _selectedLocale; }
+            set { _selectedLocale = value.Replace("System.Windows.Controls.ComboBoxItem: ", ""); }
+        }
+
+        private int _selectedSpeechRate = 0;
+        public int SelectedSpeechRate
+        {
+            get { return _selectedSpeechRate; }
+            set { _selectedSpeechRate = value; }
+        }
+
 
         //Constructor
         public MainViewModel()
         {
             StartDialogueCommand = new RelayCommand(ManageDialogue);
             
-            //Initialize recognition engine
-            InitializeRecognitionEngine();
-            InitializeSynthesizer();
+            //Initialize recognition and synthesizer engine
+            //InitializeRecognitionEngine();
+            //InitializeSynthesizer();
 
             //Initialize MongoDB client
             client = new MongoClient(mongoURI);
@@ -102,6 +118,7 @@ namespace JobAssist
         {
             _synthesizer = new SpeechSynthesizer();
             _synthesizer.SetOutputToDefaultAudioDevice();
+            _synthesizer.Rate = _selectedSpeechRate;
         }
 
         private void SpeakCompleted(object sender, SpeakCompletedEventArgs e)
@@ -135,12 +152,14 @@ namespace JobAssist
         private void InitializeRecognitionEngine()
         {
             //Create Microphone Reco client - Bing Speech
+            Debug.Write("Initializing Recognition Engine with locale " + _selectedLocale + " ... ");
             this.micClient = SpeechRecognitionServiceFactory.CreateMicrophoneClient(
                 SpeechRecognitionMode.ShortPhrase,
-                "en-IN",
+                _selectedLocale,
                 this.SubscriptionKey);
             this.micClient.OnMicrophoneStatus += this.OnMicrophoneStatus;
             this.micClient.OnResponseReceived += this.OnMicResponseReceivedHandler;
+            Debug.WriteLine("Done");
         }
 
         private void getAllUtterancesFromDB()
@@ -251,7 +270,10 @@ namespace JobAssist
         //Dialogue Manager - Bing Speech
         private void ManageDialogue()
         {
-            while(true)
+            //Initialize recognition and synthesizer engine
+            InitializeRecognitionEngine();
+            InitializeSynthesizer();
+            while (true)
             {
                 if(!isMicRecording && systemTurn)
                 {
@@ -334,6 +356,10 @@ namespace JobAssist
                     builder.AppendText("Welcome to job assist. Speak your responses after the beep. Say quit at any time to exit.");
                     firstRun++;
                 }
+                foundJobType = false;
+                foundJobLoc = false;
+                jobLocation = "";
+                jobType = "";
                 builder.StartSentence();
                 builder.AppendText("Would you like to search for jobs today?");
                 builder.EndSentence();
@@ -341,6 +367,10 @@ namespace JobAssist
 
             if (step == 2)
             {
+                foundJobType = false;
+                foundJobLoc = false;
+                jobLocation = "";
+                jobType = "";
                 builder.StartSentence();
                 builder.AppendText("Ok. What type of job would you like to search for?");
                 builder.EndSentence();
@@ -350,6 +380,17 @@ namespace JobAssist
             {
                 builder.StartSentence();
                 string jobText = string.Format("You would like to search for {0} jobs? Is that correct?", answer.Replace(".", ""));
+                if(foundJobType)
+                {
+                    if(previousStep == 1)
+                    {
+                        jobText = string.Format("Okay, I will look for {0} jobs. Did I get that right?", answer.Replace(".", ""));
+                    }
+                    else
+                    {
+                        jobText = string.Format("Okay, {0} jobs. Did I get that right?", answer.Replace(".", ""));
+                    }
+                }
                 builder.AppendText(jobText);
                 builder.EndSentence();
             }
@@ -364,7 +405,7 @@ namespace JobAssist
             if (step == 5)
             {
                 builder.StartSentence();
-                builder.AppendText("Ok. What is the city, state or zip code that you would like to search?");
+                builder.AppendText("Ok. What is the city, state or zip code that you would like me to search?");
                 builder.EndSentence();
             }
 
@@ -372,6 +413,17 @@ namespace JobAssist
             {
                 builder.StartSentence();
                 string jobText = string.Format("Ok, {0}. Is that right?", answer);
+                if(foundJobLoc)
+                {
+                    if(previousStep == 1)
+                    {
+                        jobText = string.Format("And, I will search in the {0} region. Correct?", answer);
+                    }
+                    else if(previousStep == 4)
+                    {
+                        jobText = string.Format("Okay, in the {0} area. Right?", answer);
+                    }
+                }
                 builder.AppendText(jobText);
                 builder.EndSentence();
             }
@@ -411,21 +463,20 @@ namespace JobAssist
                             //speak job title
                             currentJobTitle = j.jobtitle;
                             builder.StartSentence();
-                            string jobTitle = String.Format("Job number {0}, {1}", jobNumber, j.jobtitle);
+                            string jobTitle = String.Format("Okay. Job number {0} is {1}", jobNumber, j.jobtitle);
                             builder.AppendText(jobTitle);
                             builder.EndSentence();
 
                             //speak snippet/description
                             currentJobDescription = j.snippet;
                             builder.StartSentence();
-                            string jobDescription = String.Format("Job description {0}", j.snippet);
+                            string jobDescription = String.Format("The description of the job states {0}", j.snippet);
                             builder.AppendText(jobDescription);
                             builder.EndSentence();
 
                             builder.StartSentence();
                             builder.AppendText("Would you like to save this job?");
                             builder.EndSentence();
-                            jobNumber++;
                             if(shouldSpeakNextJob)
                             {
                                 shouldSpeakNextJob = false;
@@ -439,7 +490,7 @@ namespace JobAssist
                 if (shouldSaveJob)
                 {
                     builder.StartSentence();
-                    builder.AppendText("The job has been saved.");
+                    builder.AppendText("I have saved the job.");
                     builder.EndSentence();
                     shouldSaveJob = false;
                     shouldGetSalaryInfo = true;
@@ -508,11 +559,68 @@ namespace JobAssist
         {
             if(step == 1)
             {
+                Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
+                string answerWithoutInterpretation = answer;
+                string jobTypeEntity = "";
+                string jobLocEntity = "";
+                foreach (String entityKey in entities.Keys)
+                {
+                    if (entityKey.Equals("JobType"))
+                    {
+                        Debug.WriteLine("entityKey " + entityKey);
+                        if (entities.TryGetValue(entityKey, out jobTypeEntity))
+                        {
+                            Debug.WriteLine("entity " + jobTypeEntity);
+                            continue;
+                        }
+                    }
+
+                    if (entityKey.Equals("LocationEntity") || entityKey.Contains("geography"))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            Debug.WriteLine("entity " + jobLocEntity);
+                            continue;
+                        }
+                    }
+                }
+                if(!String.IsNullOrEmpty(jobTypeEntity))
+                {
+                    foundJobType = true;
+                    jobType = jobTypeEntity;
+                    previousStep = step;
+                }
+
+                if(!String.IsNullOrEmpty(jobLocEntity))
+                {
+                    foundJobLoc = true;
+                    jobLocation = jobLocEntity;
+                }
+
                 answer = interpreter.getIntent(interpretedSpeech);
+                if(answer.Equals("None") || answer.Equals("none"))
+                {
+                    if(answerWithoutInterpretation.Contains("Yes") || answerWithoutInterpretation.Contains("yes"))
+                    {
+                        answer = "Yes";
+                    }
+                    else if(answerWithoutInterpretation.Contains("No") || answerWithoutInterpretation.Contains("no"))
+                    {
+                        answer = "No";
+                    }
+                }
                 Debug.WriteLine("Would you like to search for jobs today: " + answer);
                 if (answer == "Yes" || answer == "yes")
                 {
-                    step = 2;
+                    if(foundJobType)
+                    {
+                        answer = jobType;
+                        step = 3;
+                    }
+                    else
+                    {
+                        step = 2;
+                    }
                 }
                 else if (answer == "No" || answer == "no")
                 {
@@ -545,7 +653,12 @@ namespace JobAssist
                         }
                     }
                 }
-                if (String.IsNullOrEmpty(answer) && answerWithoutInterpretation.Length < 4)
+                if(String.IsNullOrEmpty(answer))
+                {
+                    answer = interpreter.getIntent(interpretedSpeech);
+                }
+                if ((String.IsNullOrEmpty(answer) || answer.Contains("None")) 
+                    && answerWithoutInterpretation.Split(new char[] { ' ', '.', ',' }, StringSplitOptions.RemoveEmptyEntries).Count() < 4)
                 {
                     answer = answerWithoutInterpretation;
                 }
@@ -557,8 +670,9 @@ namespace JobAssist
                     if(noResponse)
                     {
                         helpText = "Try to speak your responses a little bit louder.";
+                        noResponse = false;
                     }
-                    else if(answerWithoutInterpretation.Length >= 4)
+                    else if(answerWithoutInterpretation.Split(new char[] { ' ', '.', ',' }, StringSplitOptions.RemoveEmptyEntries).Count() >= 4)
                     {
                         helpText = "Please try to say the job type in one or two words.";
                     }
@@ -577,14 +691,46 @@ namespace JobAssist
             else if(step == 3)
             {
                 answer = interpreter.getIntent(interpretedSpeech);
+                Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
+                Debug.WriteLine("entities length " + entities.Count);
+                string jobEntity = "";
+                foreach (String entityKey in entities.Keys)
+                {
+                    if (entityKey.Equals("JobType"))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobEntity))
+                        {
+                            break;
+                        }
+                    }
+                }
                 Debug.WriteLine("You would like to search for [job type] jobs?: " + answer);
                 if (answer == "Yes" || answer == "yes")
                 {
-                    step = 4;
+                    if (foundJobLoc)
+                    {
+                        answer = jobLocation;
+                        previousStep = 1;
+                        step = 6;
+                    }
+                    else
+                    {
+                        step = 4;
+                    }
                 }
                 else if (answer == "No" || answer == "no")
                 {
-                    step = 2;
+                    //step = 2;
+                    if (String.IsNullOrEmpty(jobEntity))
+                    {
+                        step = 2;
+                    }
+                    else
+                    {
+                        step = 3;
+                        answer = jobEntity;
+                        jobType = jobEntity;
+                    }
                 }
                 else if (answer.Contains("Quit") || answer.Contains("quit"))
                 {
@@ -592,20 +738,52 @@ namespace JobAssist
                 }
                 else
                 {
-                    step = 0;
-                    previousStep = 3;
-                    answer = lastJob;
-                    helpText = "Try saying yes or no.";
+                    if (String.IsNullOrEmpty(jobEntity))
+                    {
+                        step = 0;
+                        previousStep = 3;
+                        answer = lastJob;
+                        helpText = "Try saying yes or no.";
+                    }
+                    else
+                    {
+                        step = 3;
+                        answer = jobEntity;
+                        jobType = jobEntity;
+                    }
                 }
             }
             else if(step == 4)
             {
                 answer = interpreter.getIntent(interpretedSpeech);
+                Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
+                string jobLocEntity = "";
+                foreach (String entityKey in entities.Keys)
+                {
+                    if (entityKey.Equals("LocationEntity") || entityKey.Contains("geography"))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            break;
+                        }
+                    }
+                }
                 Debug.WriteLine("Would you like to search for jobs in a specific city or state: " + answer);
                 if (answer == "Yes" || answer == "yes")
                 {
                     searchByLocation = true;
-                    step = 5;
+                    if(String.IsNullOrEmpty(jobLocEntity))
+                    {
+                        step = 5;
+                    }
+                    else
+                    {
+                        previousStep = step;
+                        step = 6;
+                        answer = jobLocEntity;
+                        jobLocation = jobLocEntity;
+                        foundJobLoc = true;
+                    }
                 }
                 else if (answer == "No" || answer == "no")
                 {
@@ -617,9 +795,21 @@ namespace JobAssist
                 }
                 else
                 {
-                    step = 0;
-                    previousStep = 4;
-                    helpText = "Try saying yes or no.";
+                    if(String.IsNullOrEmpty(jobLocEntity))
+                    {
+                        step = 0;
+                        previousStep = 4;
+                        helpText = "Try saying yes or no.";
+                    }
+                    else
+                    {
+                        searchByLocation = true;
+                        foundJobLoc = true;
+                        previousStep = step;
+                        step = 6;
+                        answer = jobLocEntity;
+                        jobLocation = jobLocEntity;
+                    }
                 }
             }
             else if(step == 5)
@@ -649,6 +839,19 @@ namespace JobAssist
             else if(step == 6)
             {
                 answer = interpreter.getIntent(interpretedSpeech);
+                Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
+                Debug.WriteLine("entities length " + entities.Count);
+                string jobLocEntity = "";
+                foreach (String entityKey in entities.Keys)
+                {
+                    if (entityKey.Equals("LocationEntity") || entityKey.Contains("geography"))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            break;
+                        }
+                    }
+                }
                 Debug.WriteLine("You would like to search for jobs in [place]: " + answer);
                 if (answer == "Yes" || answer == "yes")
                 {
@@ -657,7 +860,16 @@ namespace JobAssist
                 }
                 else if (answer == "No" || answer == "no")
                 {
-                    step = 5;
+                    if (String.IsNullOrEmpty(jobLocEntity))
+                    {
+                        step = 5;
+                    }
+                    else
+                    {
+                        jobLocation = jobLocEntity;
+                        answer = jobLocEntity;
+                        step = 6;
+                    }
                 }
                 else if (answer.Contains("Quit") || answer.Contains("quit"))
                 {
@@ -760,10 +972,27 @@ namespace JobAssist
                         Debug.Write("Done");
                         shouldSaveJob = true;
                     }
-                    else
+                    else if (answer == "No" || answer == "no")
                     {
                         shouldSaveJob = false;
                         shouldGetSalaryInfo = true;
+                    }
+                    else if (answer.Contains("Quit") || answer.Contains("quit"))
+                    {
+                        step = 100;
+                    }
+                    else if (string.IsNullOrEmpty(answer) || noResponse)
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try to speak your response a little bit louder.";
+                        noResponse = false;
+                    }
+                    else
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try saying yes or no.";
                     }
                 }
                 else if (shouldGetSalaryInfo && !shouldSpeakJobSalary)
@@ -788,11 +1017,28 @@ namespace JobAssist
                         shouldSpeakJobSalary = true;
                         shouldGetSalaryInfo = false;
                     }
-                    else
+                    else if (answer == "No" || answer == "no")
                     {
                         shouldGetSalaryInfo = false;
                         shouldSpeakJobSalary = false;
                         askForNextJobOrNewSearch = true;
+                    }
+                    else if (answer.Contains("Quit") || answer.Contains("quit"))
+                    {
+                        step = 100;
+                    }
+                    else if (string.IsNullOrEmpty(answer) || noResponse)
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try to speak your response a little bit louder.";
+                        noResponse = false;
+                    }
+                    else
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try saying yes or no.";
                     }
                 }
                 else if(askForNextJobOrNewSearch)
@@ -801,16 +1047,33 @@ namespace JobAssist
                         || answer == "begin a new search")
                     {
                         step = 2;
+                        jobNumber = 1;
+                        askForNextJobOrNewSearch = false;
                     }
                     else if (answer.Contains("quit") || answer.Contains("Quit"))
                     {
                         step = 100;
+                        askForNextJobOrNewSearch = false;
+                    }
+                    else if(answer.Contains("next job") || answer.Equals("NextJob"))
+                    {
+                        shouldSpeakNextJob = true;
+                        askForNextJobOrNewSearch = false;
+                        jobNumber++;
+                    }
+                    else if (string.IsNullOrEmpty(answer) || noResponse)
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try to speak your response a little bit louder.";
+                        noResponse = false;
                     }
                     else
                     {
-                        shouldSpeakNextJob = true;
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try saying Next Job or New Search.";
                     }
-                    askForNextJobOrNewSearch = false;
                 }
             }
             else if(step == 100)
@@ -836,6 +1099,7 @@ namespace JobAssist
                     previousStep = 100;
                     step = 0;
                     helpText = "Try to speak your response a little bit louder.";
+                    noResponse = false;
                 }
             }
         }

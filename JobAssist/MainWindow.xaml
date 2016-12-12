@@ -9,12 +9,27 @@
         Closing="MainWindow_OnClosing"
         Title="MainWindow" Height="500" Width="525" WindowStartupLocation="CenterScreen" Background="Black">
     <Grid>
-        <StackPanel Margin="100">
-
+        <StackPanel Margin="40">
+            <StackPanel Orientation="Horizontal">
+                <StackPanel>
+                    <Label Content="Locale" Foreground="#FFFFFF" Margin="10,0,0,0"/>
+                    <ComboBox x:Name="LocaleSelect" SelectedItem="{Binding SelectedLocale}" Text="Locale" Margin="10,0,0,0" Width="70">
+                        <ComboBoxItem Content="en-US"/>
+                        <ComboBoxItem Content="en-GB"/>
+                        <ComboBoxItem Content="en-IN"/>
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel>
+                    <Label Content="Speech Rate" Foreground="#FFFFFF" Margin="130,0,0,0" Width="236"/>
+                    <Slider x:Name="SpeechRateSelect" Minimum="-10" Maximum="10" TickPlacement="BottomRight" 
+                            TickFrequency="1" IsSnapToTickEnabled="True" Margin="130,0,0,0" HorizontalAlignment="Left" Width="219"
+                            Value="{Binding SelectedSpeechRate}"/>
+                </StackPanel>
+            </StackPanel>
             <Image gif:ImageBehavior.AnimatedSource="Images/cortana-pulse.gif" />
             <Button Width="100" Height="30" FontSize="16" Content="Search Jobs" Command="{Binding StartDialogueCommand}" />
 
         </StackPanel>
-            
+
     </Grid>
 </Window>
