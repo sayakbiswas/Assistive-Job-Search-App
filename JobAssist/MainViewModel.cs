@@ -66,6 +66,7 @@ namespace JobAssist
         private string currentJobTitle = "";
         private string currentJobDescription = "";
         private string currentJobMedianSalary = "";
+        private string currentJobCompany = "";
         private bool systemTurn = true;
         private bool userTurn = false;
         private JObject interpretedSpeech;
@@ -361,7 +362,14 @@ namespace JobAssist
                 jobLocation = "";
                 jobType = "";
                 builder.StartSentence();
-                builder.AppendText("Would you like to search for jobs today?");
+                if(previousStep == 8)
+                {
+                    builder.AppendText("Okay then, would you like to search for some other type of jobs?");
+                }
+                else
+                {
+                    builder.AppendText("Would you like to search for jobs today?");
+                }
                 builder.EndSentence();
             }
 
@@ -462,8 +470,10 @@ namespace JobAssist
                         {
                             //speak job title
                             currentJobTitle = j.jobtitle;
+                            currentJobCompany = j.company;
                             builder.StartSentence();
-                            string jobTitle = String.Format("Okay. Job number {0} is {1}", jobNumber, j.jobtitle);
+                            string jobTitle = String.Format("Okay. Job number {0} is {1} posted by the company {2}", 
+                                jobNumber, j.jobtitle, j.company);
                             builder.AppendText(jobTitle);
                             builder.EndSentence();
 
@@ -862,10 +872,12 @@ namespace JobAssist
                 {
                     if (String.IsNullOrEmpty(jobLocEntity))
                     {
+                        foundJobLoc = false;
                         step = 5;
                     }
                     else
                     {
+                        previousStep = 6;
                         jobLocation = jobLocEntity;
                         answer = jobLocEntity;
                         step = 6;
@@ -877,10 +889,21 @@ namespace JobAssist
                 }
                 else
                 {
-                    step = 0;
-                    previousStep = 6;
-                    answer = lastLocation;
-                    helpText = "Try saying yes or no.";
+                    if(String.IsNullOrEmpty(jobLocEntity))
+                    {
+                        step = 0;
+                        previousStep = 6;
+                        answer = lastLocation;
+                        helpText = "Try saying yes or no.";
+                    }
+                    else
+                    {
+                        previousStep = step;
+                        step = 6;
+                        jobLocation = jobLocEntity;
+                        answer = jobLocEntity;
+
+                    }
                 }
             }
             else if(step == 7)
@@ -902,13 +925,14 @@ namespace JobAssist
                             select new
                             {
                                 jobTitle = j.Element("jobtitle").Value,
-                                snippet = j.Element("snippet").Value
+                                snippet = j.Element("snippet").Value,
+                                company = j.Element("company").Value
                             };
                 jobSearchResults = Convert.ToString(query.Count());
                 foreach (var o in query)
                 {
                     //Debug.WriteLine("Job snippet " + o.snippet);
-                    Job j = new Job() { jobtitle = o.jobTitle, snippet = o.snippet };
+                    Job j = new Job() { jobtitle = o.jobTitle, snippet = o.snippet, company = o.company };
                     jobs.Add(j);
                 }
 
@@ -930,8 +954,9 @@ namespace JobAssist
                     }
                     else if (answer == "No" || answer == "no")
                     {
-                        step = 9;
-                        askForNextJobOrNewSearch = true;
+                        previousStep = step;
+                        step = 1;
+                        //askForNextJobOrNewSearch = true;
                     }
                     else if (answer.Contains("Quit") || answer.Contains("quit"))
                     {
@@ -956,8 +981,8 @@ namespace JobAssist
                         Debug.Write("Saving Job ... ");
                         string path = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
                         string saveFile = path + @"\job_assist_" + DateTime.Now.Date.ToString("MMM - dd - yyyy") + ".txt";
-                        string jobInformation = String.Format("Job title: {0}. Job description: {1}",
-                            currentJobTitle, currentJobDescription);
+                        string jobInformation = String.Format("Job title: {0}. Job description: {1}. Company: {2}",
+                            currentJobTitle, currentJobDescription, currentJobCompany);
                         if (!File.Exists(saveFile))
                         {
                             File.WriteAllText(saveFile, jobInformation);

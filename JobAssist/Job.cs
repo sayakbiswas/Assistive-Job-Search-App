@@ -10,6 +10,6 @@ namespace JobAssist
     {
         public string jobtitle { get; set; }
         public string snippet { get; set; }
-
+        public string company { get; set; }
     }
 }
