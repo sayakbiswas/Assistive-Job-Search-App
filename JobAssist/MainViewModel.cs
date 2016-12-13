@@ -61,7 +61,7 @@ namespace JobAssist
         private bool shouldGetSalaryInfo = false;
         private bool shouldSpeakJobSalary = false;
         private bool askForNextJobOrNewSearch = false;
-        private bool shouldSpeakNextJob = false;
+        private bool shouldSpeakNextJob = true;
         private bool shouldSayQuitMessage = false;
         private string currentJobTitle = "";
         private string currentJobDescription = "";
@@ -73,6 +73,18 @@ namespace JobAssist
         private bool noResponse = false;
         private bool foundJobType = false;
         private bool foundJobLoc = false;
+        private bool shouldGetCompanyInfo = false;
+        private bool shouldSpeakCompanyInfo = false;
+        private Company currentCompany;
+        private bool shouldGetCompanyRatings = false;
+        private bool shouldGetCompanyReviews = false;
+        private bool shouldSpeakCompanyRatings = false;
+        private bool shouldSpeakCompanyReviews = false;
+        private bool hasSpokenCompanyRatings = false;
+        private bool hasSpokenCompanyReviews = false;
+        private bool shouldAskForSaveJob = false;
+        private bool newSearch = false;
+        private bool noCompanyInfo = false;
 
         public string SpeechInput
         {
@@ -129,7 +141,7 @@ namespace JobAssist
             if(step == 3)
             {
                 Debug.WriteLine("Speak Completed");
-                Console.Beep();
+                //Console.Beep();
                 step = 0;
             }
 
@@ -278,6 +290,7 @@ namespace JobAssist
             {
                 if(!isMicRecording && systemTurn)
                 {
+                    systemTurn = false;
                     PromptBuilder builder = new PromptBuilder();
 
                     Debug.Write("Build Sentence to Speak ... ");
@@ -295,13 +308,13 @@ namespace JobAssist
                         Environment.Exit(0);
                     }
 
-                    Debug.WriteLine("Beeping ...");
-                    Console.Beep();
-
-                    systemTurn = false;
-
-                    Debug.Write("Start Speech Recognition ... ");
-                    this.micClient.StartMicAndRecognition();
+                    if(!systemTurn)
+                    {
+                        Debug.WriteLine("Beeping ...");
+                        Console.Beep();
+                        Debug.Write("Start Speech Recognition ... ");
+                        this.micClient.StartMicAndRecognition();
+                    }
                 }
 
                 if(!isMicRecording && userTurn)
@@ -350,11 +363,21 @@ namespace JobAssist
                 step = previousStep;
             }
 
+            if (step == 101)
+            {
+                builder.StartSentence();
+                builder.AppendText("You can say quit to exit and new search to start the job search again. "
+                    + "Try to speak short responses for best results.");
+                builder.EndSentence();
+                step = previousStep;
+            }
+
             if (step == 1)
             {
                 if (firstRun == 0)
                 {
-                    builder.AppendText("Welcome to job assist. Speak your responses after the beep. Say quit at any time to exit.");
+                    //builder.AppendText("Welcome to job assist. Speak your responses after the beep. Say quit at any time to exit.");
+                    builder.AppendText("Welcome to job assist. Say new search at any time to start the job search again and quit to exit. Speak your responses after the beep.");
                     firstRun++;
                 }
                 foundJobType = false;
@@ -362,9 +385,10 @@ namespace JobAssist
                 jobLocation = "";
                 jobType = "";
                 builder.StartSentence();
-                if(previousStep == 8)
+                if(previousStep == 8 || newSearch)
                 {
                     builder.AppendText("Okay then, would you like to search for some other type of jobs?");
+                    newSearch = false;
                 }
                 else
                 {
@@ -406,7 +430,7 @@ namespace JobAssist
             if (step == 4)
             {
                 builder.StartSentence();
-                builder.AppendText("Would you like to search for jobs in a specific city or state?");
+                builder.AppendText("Next, would you like to search for jobs in a specific city or state?");
                 builder.EndSentence();
             }
 
@@ -441,10 +465,43 @@ namespace JobAssist
                 builder.StartSentence();
                 builder.AppendText("Okay! I will now search for jobs. Please hold on.");
                 builder.EndSentence();
+
+                step = 8;
+                systemTurn = true;
+                userTurn = false;
+                return builder;
             }
 
             if (step == 8)
             {
+                //Do the API Call here
+                //NOTE: maximum number of results per query is set at default of 10
+                var client = new RestClient("http://api.indeed.com/ads/apisearch");
+                var request = new RestRequest(Method.GET);
+                request.AddParameter("publisher", "6582450998153239");
+                request.AddParameter("v", "2");
+                request.AddParameter("q", jobType); //job search query string
+
+                if (searchByLocation == true)
+                    request.AddParameter("l", jobLocation);
+
+                IRestResponse response = client.Execute(request);
+                var xml = XDocument.Parse(response.Content);
+                var query = from j in xml.Root.Descendants("result")
+                            select new
+                            {
+                                jobTitle = j.Element("jobtitle").Value,
+                                snippet = j.Element("snippet").Value,
+                                company = j.Element("company").Value
+                            };
+                jobSearchResults = Convert.ToString(query.Count());
+                foreach (var o in query)
+                {
+                    //Debug.WriteLine("Job snippet " + o.snippet);
+                    Job j = new Job() { jobtitle = o.jobTitle, snippet = o.snippet, company = o.company };
+                    jobs.Add(j);
+                }
+
                 builder.StartSentence();
                 string searchResults = string.Format("I found {0} job listings.", jobSearchResults);
                 builder.AppendText(searchResults);
@@ -461,13 +518,14 @@ namespace JobAssist
             if (step == 9) //reviewing the job listings 
             {
                 int count = 1;
-                if((!shouldGetSalaryInfo && !shouldSaveJob && !shouldSpeakJobSalary && !askForNextJobOrNewSearch) 
-                    || shouldSpeakNextJob)
+                if(shouldSpeakNextJob)
                 {
                     foreach (Job j in jobs)
                     {
                         if (count == jobNumber)
                         {
+                            hasSpokenCompanyRatings = false;
+                            hasSpokenCompanyReviews = false;
                             //speak job title
                             currentJobTitle = j.jobtitle;
                             currentJobCompany = j.company;
@@ -484,23 +542,28 @@ namespace JobAssist
                             builder.AppendText(jobDescription);
                             builder.EndSentence();
 
-                            builder.StartSentence();
-                            builder.AppendText("Would you like to save this job?");
-                            builder.EndSentence();
                             if(shouldSpeakNextJob)
                             {
                                 shouldSpeakNextJob = false;
                             }
+                            shouldAskForSaveJob = true;
                             break;
                         }
                         count++;
                     }
                 }
 
+                if(shouldAskForSaveJob)
+                {
+                    builder.StartSentence();
+                    builder.AppendText("So, do you want me to save this job for you?");
+                    builder.EndSentence();
+                }
+
                 if (shouldSaveJob)
                 {
                     builder.StartSentence();
-                    builder.AppendText("I have saved the job.");
+                    builder.AppendText("Done! I have saved the job.");
                     builder.EndSentence();
                     shouldSaveJob = false;
                     shouldGetSalaryInfo = true;
@@ -509,19 +572,158 @@ namespace JobAssist
                 if(shouldGetSalaryInfo)
                 {
                     builder.StartSentence();
-                    builder.AppendText("Would you like to get salary information for this job?");
+                    builder.AppendText("Now, would you like to get salary information for this job?");
                     builder.EndSentence();
                 }
 
                 if(shouldSpeakJobSalary)
                 {
                     builder.StartSentence();
-                    string salaryInfo = string.Format("The median salary for {0} jobs is {1} dollars.", 
+                    string salaryInfo = string.Format("Got it! The median salary for {0} jobs is {1} dollars.", 
                         jobType, currentJobMedianSalary);
                     builder.AppendText(salaryInfo);
                     builder.EndSentence();
                     shouldSpeakJobSalary = false;
-                    askForNextJobOrNewSearch = true;
+                    //askForNextJobOrNewSearch = true;
+                    shouldGetCompanyInfo = true;
+                }
+
+                if(shouldGetCompanyInfo)
+                {
+                    builder.StartSentence();
+                    string askCompanyInfo = string.Format("Would you like to know more about the company {0}?", currentJobCompany);
+                    builder.AppendText(askCompanyInfo);
+                    builder.EndSentence();
+                    //shouldGetCompanyInfo = false;
+                }
+
+                if(shouldSpeakCompanyInfo)
+                {
+                    builder.StartSentence();
+                    string askCompanySpecifics = string.Format("I'm sorry! I can't seem to find any information on {0}.", 
+                        currentJobCompany);
+                    if (!noCompanyInfo)
+                    {
+                        askCompanySpecifics = string.Format("Okay, what would you like to know about the company? I can tell you about ratings and reviews.");
+                    }
+                    
+                    builder.AppendText(askCompanySpecifics);
+                    builder.EndSentence();
+                    //shouldSpeakCompanyInfo = false;
+                }
+
+                if(shouldGetCompanyRatings)
+                {
+                    builder.StartSentence();
+                    string speakText = string.Format("So, ratings for {0}? Right?", currentJobCompany);
+                    if (hasSpokenCompanyReviews)
+                    {
+                        speakText = string.Format("Would you like to know the company ratings as well?");
+                    }
+                    builder.AppendText(speakText);
+                    builder.EndSentence();
+                    //shouldGetCompanyRatings = false;
+                }
+
+                if(shouldSpeakCompanyRatings)
+                {
+                    builder.StartSentence();
+                    string speakText = string.Format("Okay, on glassdoor {0} is rated around {1} points out of a possible 5.", 
+                        currentJobCompany, currentCompany.overallRating);
+                    builder.AppendText(speakText);
+                    builder.EndSentence();
+                    if (!string.IsNullOrEmpty(currentCompany.ratingDescription))
+                    {
+                        builder.StartSentence();
+                        speakText = string.Format("Most people think it is a {0} company to work for.", 
+                            currentCompany.ratingDescription);
+                        builder.AppendText(speakText);
+                        builder.EndSentence();
+                    }
+                    if(!string.IsNullOrEmpty(currentCompany.cultureAndValuesRating))
+                    {
+                        builder.StartSentence();
+                        speakText = string.Format("The work culture is generally thought to be {0}.",
+                            interpreter.getRatingMeaning(currentCompany.cultureAndValuesRating));
+                        builder.AppendText(speakText);
+                        builder.EndSentence();
+                    }
+                    if(!string.IsNullOrEmpty(currentCompany.workLifeBalanceRating))
+                    {
+                        builder.StartSentence();
+                        speakText = string.Format("Working at the company allows for a {0} work life balance.", 
+                            interpreter.getRatingMeaning(currentCompany.workLifeBalanceRating));
+                        builder.AppendText(speakText);
+                        builder.EndSentence();
+                    }
+                    if(!string.IsNullOrEmpty(currentCompany.recommendToFriendRating))
+                    {
+                        builder.StartSentence();
+                        speakText = string.Format("Also, something to keep in mind would be that around {0} percent of people said that they would recommend {1} to a friend.",
+                            currentCompany.recommendToFriendRating, currentJobCompany);
+                        builder.AppendText(speakText);
+                        builder.EndSentence();
+                    }
+                    shouldSpeakCompanyRatings = false;
+                    hasSpokenCompanyRatings = true;
+                    if(!hasSpokenCompanyReviews)
+                    {
+                        shouldGetCompanyReviews = true;
+                    }
+                    else
+                    {
+                        askForNextJobOrNewSearch = true;
+                    }
+                }
+
+                if(shouldGetCompanyReviews 
+                    && (!string.IsNullOrEmpty(currentCompany.reviewPros) || !string.IsNullOrEmpty(currentCompany.reviewCons)))
+                {
+                    builder.StartSentence();
+                    string speakText = string.Format("So, do you want to listen to a review about {0} from Glassdoor?", 
+                        currentJobCompany);
+                    if (!hasSpokenCompanyRatings)
+                    {
+                        speakText = string.Format("Okay, company review. Is that right?");
+                    }
+                    builder.AppendText(speakText);
+                    builder.EndSentence();
+                    //shouldGetCompanyReviews = false;
+                }
+                
+                if(shouldSpeakCompanyReviews)
+                {
+                    builder.StartSentence();
+                    string speakText = string.Format("Okay, here's what an employee who is a {0} says about {1}.",
+                        currentCompany.reviewHeadline, currentJobCompany);
+                    builder.AppendText(speakText);
+                    builder.EndSentence();
+                    if (!string.IsNullOrEmpty(currentCompany.reviewPros))
+                    {
+                        builder.StartSentence();
+                        speakText += string.Format("Pros. {0}", currentCompany.reviewPros);
+                        builder.AppendText(speakText);
+                        builder.EndSentence();
+                    }
+                    if(!string.IsNullOrEmpty(currentCompany.reviewCons))
+                    {
+                        builder.StartSentence();
+                        speakText += string.Format("Cons. {0}", currentCompany.reviewCons);
+                        builder.AppendText(speakText);
+                        builder.EndSentence();
+                    }
+                    hasSpokenCompanyReviews = true;
+                    shouldSpeakCompanyReviews = false;
+                    if(!hasSpokenCompanyRatings)
+                    {
+                        shouldGetCompanyRatings = true;
+                        systemTurn = true;
+                        userTurn = false;
+                    }
+                    else
+                    {
+                        askForNextJobOrNewSearch = true;
+                    }
                 }
 
                 if(askForNextJobOrNewSearch)
@@ -537,7 +739,7 @@ namespace JobAssist
                 if(!shouldSayQuitMessage)
                 {
                     builder.StartSentence();
-                    builder.AppendText("Ok. You would like to quit?");
+                    builder.AppendText("Ok. You'd like to quit?");
                     builder.EndSentence();
                 }
                 else
@@ -547,6 +749,7 @@ namespace JobAssist
                     builder.EndSentence();
                 }
             }
+
             return builder;
         }
 
@@ -567,7 +770,7 @@ namespace JobAssist
         //Intent Handler - Bing Speech
         private void HandleIntent(JObject interpretedSpeech)
         {
-            if(step == 1)
+            if (step == 1)
             {
                 Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
                 string answerWithoutInterpretation = answer;
@@ -594,27 +797,29 @@ namespace JobAssist
                         }
                     }
                 }
-                if(!String.IsNullOrEmpty(jobTypeEntity))
+                if (!String.IsNullOrEmpty(jobTypeEntity))
                 {
                     foundJobType = true;
                     jobType = jobTypeEntity;
                     previousStep = step;
+                    lastJob = jobType;
                 }
 
-                if(!String.IsNullOrEmpty(jobLocEntity))
+                if (!String.IsNullOrEmpty(jobLocEntity))
                 {
                     foundJobLoc = true;
                     jobLocation = jobLocEntity;
+                    lastLocation = jobLocation;
                 }
 
                 answer = interpreter.getIntent(interpretedSpeech);
-                if(answer.Equals("None") || answer.Equals("none"))
+                if (answer.Equals("None") || answer.Equals("none"))
                 {
-                    if(answerWithoutInterpretation.Contains("Yes") || answerWithoutInterpretation.Contains("yes"))
+                    if (answerWithoutInterpretation.Contains("Yes") || answerWithoutInterpretation.Contains("yes"))
                     {
                         answer = "Yes";
                     }
-                    else if(answerWithoutInterpretation.Contains("No") || answerWithoutInterpretation.Contains("no"))
+                    else if (answerWithoutInterpretation.Contains("No") || answerWithoutInterpretation.Contains("no"))
                     {
                         answer = "No";
                     }
@@ -622,7 +827,7 @@ namespace JobAssist
                 Debug.WriteLine("Would you like to search for jobs today: " + answer);
                 if (answer == "Yes" || answer == "yes")
                 {
-                    if(foundJobType)
+                    if (foundJobType)
                     {
                         answer = jobType;
                         step = 3;
@@ -640,20 +845,31 @@ namespace JobAssist
                 {
                     step = 100;
                 }
+                else if(answer.Equals("NewSearch"))
+                {
+                    step = 1;
+                    jobNumber = 1;
+                    newSearch = true;
+                }
+                else if(answer.Equals("Help") || answer.Equals("help"))
+                {
+                    step = 101;
+                }
                 else
                 {
+                    previousStep = step;
                     step = 0;
                     helpText = "Try saying yes or no.";
                 }
             }
-            else if(step == 2)
+            else if (step == 2)
             {
                 Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
                 string answerWithoutInterpretation = answer;
                 answer = "";
-                foreach(String entityKey in entities.Keys)
+                foreach (String entityKey in entities.Keys)
                 {
-                    if(entityKey.Equals("JobType"))
+                    if (entityKey.Equals("JobType"))
                     {
                         Debug.WriteLine("entityKey " + entityKey);
                         if (entities.TryGetValue(entityKey, out answer))
@@ -663,33 +879,43 @@ namespace JobAssist
                         }
                     }
                 }
-                if(String.IsNullOrEmpty(answer))
+                if (String.IsNullOrEmpty(answer))
                 {
                     answer = interpreter.getIntent(interpretedSpeech);
                 }
-                if ((String.IsNullOrEmpty(answer) || answer.Contains("None")) 
+                if ((String.IsNullOrEmpty(answer) || answer.Contains("None"))
                     && answerWithoutInterpretation.Split(new char[] { ' ', '.', ',' }, StringSplitOptions.RemoveEmptyEntries).Count() < 4)
                 {
                     answer = answerWithoutInterpretation;
                 }
                 Debug.WriteLine("What type of job would you like to search for: " + answer);
-                if(String.IsNullOrEmpty(answer))
+                if (String.IsNullOrEmpty(answer))
                 {
                     previousStep = step;
                     step = 0;
-                    if(noResponse)
+                    if (noResponse)
                     {
                         helpText = "Try to speak your responses a little bit louder.";
                         noResponse = false;
                     }
-                    else if(answerWithoutInterpretation.Split(new char[] { ' ', '.', ',' }, StringSplitOptions.RemoveEmptyEntries).Count() >= 4)
+                    else if (answerWithoutInterpretation.Split(new char[] { ' ', '.', ',' }, StringSplitOptions.RemoveEmptyEntries).Count() >= 4)
                     {
                         helpText = "Please try to say the job type in one or two words.";
                     }
                 }
-                else if(answer.Contains("quit") || answer.Contains("Quit"))
+                else if (answer.Contains("quit") || answer.Contains("Quit"))
                 {
                     step = 100;
+                }
+                else if (answer.Equals("NewSearch"))
+                {
+                    step = 1;
+                    jobNumber = 1;
+                    newSearch = true;
+                }
+                else if (answer.Equals("Help") || answer.Equals("help"))
+                {
+                    step = 101;
                 }
                 else
                 {
@@ -698,7 +924,7 @@ namespace JobAssist
                     step = 3;
                 }
             }
-            else if(step == 3)
+            else if (step == 3)
             {
                 answer = interpreter.getIntent(interpretedSpeech);
                 Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
@@ -746,6 +972,23 @@ namespace JobAssist
                 {
                     step = 100;
                 }
+                else if(string.IsNullOrEmpty(answer) || noResponse)
+                {
+                    previousStep = step;
+                    step = 0;
+                    helpText = "Try to speak your responses a little bit louder.";
+                    noResponse = false;
+                }
+                else if (answer.Equals("NewSearch"))
+                {
+                    step = 1;
+                    jobNumber = 1;
+                    newSearch = true;
+                }
+                else if (answer.Equals("Help") || answer.Equals("help"))
+                {
+                    step = 101;
+                }
                 else
                 {
                     if (String.IsNullOrEmpty(jobEntity))
@@ -760,10 +1003,11 @@ namespace JobAssist
                         step = 3;
                         answer = jobEntity;
                         jobType = jobEntity;
+                        lastJob = jobEntity;
                     }
                 }
             }
-            else if(step == 4)
+            else if (step == 4)
             {
                 answer = interpreter.getIntent(interpretedSpeech);
                 Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
@@ -782,7 +1026,7 @@ namespace JobAssist
                 if (answer == "Yes" || answer == "yes")
                 {
                     searchByLocation = true;
-                    if(String.IsNullOrEmpty(jobLocEntity))
+                    if (String.IsNullOrEmpty(jobLocEntity))
                     {
                         step = 5;
                     }
@@ -803,9 +1047,19 @@ namespace JobAssist
                 {
                     step = 100;
                 }
+                else if (answer.Equals("NewSearch"))
+                {
+                    step = 1;
+                    jobNumber = 1;
+                    newSearch = true;
+                }
+                else if (answer.Equals("Help") || answer.Equals("help"))
+                {
+                    step = 101;
+                }
                 else
                 {
-                    if(String.IsNullOrEmpty(jobLocEntity))
+                    if (String.IsNullOrEmpty(jobLocEntity))
                     {
                         step = 0;
                         previousStep = 4;
@@ -822,31 +1076,44 @@ namespace JobAssist
                     }
                 }
             }
-            else if(step == 5)
+            else if (step == 5)
             {
                 Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
                 Debug.WriteLine("entities length " + entities.Count);
                 string answerWithoutInterpretation = answer;
-                foreach(String entityKey in entities.Keys)
+                foreach (String entityKey in entities.Keys)
                 {
-                    if(entityKey.Equals("LocationEntity") || entityKey.Contains("geography"))
+                    if (entityKey.Equals("LocationEntity") || entityKey.Contains("geography"))
                     {
-                        if(entities.TryGetValue(entityKey, out answer))
+                        if (entities.TryGetValue(entityKey, out answer))
                         {
                             break;
                         }
                     }
                 }
-                if(String.IsNullOrEmpty(answer))
+                if (String.IsNullOrEmpty(answer))
                 {
                     answer = answerWithoutInterpretation;
                 }
                 Debug.WriteLine("You would like to search for jobs in: " + answer);
-                jobLocation = answer;
-                lastLocation = answer;
-                step = 6;
+                if (answer.Equals("NewSearch"))
+                {
+                    step = 1;
+                    jobNumber = 1;
+                    newSearch = true;
+                }
+                else if (answer.Equals("Help") || answer.Equals("help"))
+                {
+                    step = 101;
+                }
+                else
+                {
+                    jobLocation = answer;
+                    lastLocation = answer;
+                    step = 6;
+                }
             }
-            else if(step == 6)
+            else if (step == 6)
             {
                 answer = interpreter.getIntent(interpretedSpeech);
                 Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
@@ -880,6 +1147,7 @@ namespace JobAssist
                         previousStep = 6;
                         jobLocation = jobLocEntity;
                         answer = jobLocEntity;
+                        lastLocation = jobLocEntity;
                         step = 6;
                     }
                 }
@@ -887,9 +1155,19 @@ namespace JobAssist
                 {
                     step = 100;
                 }
+                else if (answer.Equals("NewSearch"))
+                {
+                    step = 1;
+                    jobNumber = 1;
+                    newSearch = true;
+                }
+                else if (answer.Equals("Help") || answer.Equals("help"))
+                {
+                    step = 101;
+                }
                 else
                 {
-                    if(String.IsNullOrEmpty(jobLocEntity))
+                    if (String.IsNullOrEmpty(jobLocEntity))
                     {
                         step = 0;
                         previousStep = 6;
@@ -902,43 +1180,11 @@ namespace JobAssist
                         step = 6;
                         jobLocation = jobLocEntity;
                         answer = jobLocEntity;
-
+                        lastLocation = jobLocEntity;
                     }
                 }
             }
-            else if(step == 7)
-            {
-                //Do the API Call here
-                //NOTE: maximum number of results per query is set at default of 10
-                var client = new RestClient("http://api.indeed.com/ads/apisearch");
-                var request = new RestRequest(Method.GET);
-                request.AddParameter("publisher", "6582450998153239");
-                request.AddParameter("v", "2");
-                request.AddParameter("q", jobType); //job search query string
-
-                if (searchByLocation == true)
-                    request.AddParameter("l", jobLocation);
-
-                IRestResponse response = client.Execute(request);
-                var xml = XDocument.Parse(response.Content);
-                var query = from j in xml.Root.Descendants("result")
-                            select new
-                            {
-                                jobTitle = j.Element("jobtitle").Value,
-                                snippet = j.Element("snippet").Value,
-                                company = j.Element("company").Value
-                            };
-                jobSearchResults = Convert.ToString(query.Count());
-                foreach (var o in query)
-                {
-                    //Debug.WriteLine("Job snippet " + o.snippet);
-                    Job j = new Job() { jobtitle = o.jobTitle, snippet = o.snippet, company = o.company };
-                    jobs.Add(j);
-                }
-
-                step = 8;
-            }
-            else if(step == 8)
+            else if (step == 8)
             {
                 if (Convert.ToInt32(jobSearchResults) == 0)
                 {
@@ -962,6 +1208,16 @@ namespace JobAssist
                     {
                         step = 100;
                     }
+                    else if (answer.Equals("NewSearch"))
+                    {
+                        step = 1;
+                        jobNumber = 1;
+                        newSearch = true;
+                    }
+                    else if (answer.Equals("Help") || answer.Equals("help"))
+                    {
+                        step = 101;
+                    }
                     else
                     {
                         previousStep = step;
@@ -970,10 +1226,10 @@ namespace JobAssist
                     }
                 }
             }
-            else if(step == 9)
+            else if (step == 9)
             {
                 answer = interpreter.getIntent(interpretedSpeech);
-                if (!shouldGetSalaryInfo && !shouldSaveJob && !shouldSpeakJobSalary && !askForNextJobOrNewSearch)
+                if (shouldAskForSaveJob)
                 {
                     Debug.WriteLine("Would you like to save this job? " + answer);
                     if (answer == "Yes" || answer == "yes")
@@ -996,11 +1252,13 @@ namespace JobAssist
                         }
                         Debug.Write("Done");
                         shouldSaveJob = true;
+                        shouldAskForSaveJob = false;
                     }
                     else if (answer == "No" || answer == "no")
                     {
                         shouldSaveJob = false;
                         shouldGetSalaryInfo = true;
+                        shouldAskForSaveJob = false;
                     }
                     else if (answer.Contains("Quit") || answer.Contains("quit"))
                     {
@@ -1012,6 +1270,16 @@ namespace JobAssist
                         step = 0;
                         helpText = "Try to speak your response a little bit louder.";
                         noResponse = false;
+                    }
+                    else if (answer.Equals("NewSearch"))
+                    {
+                        step = 1;
+                        jobNumber = 1;
+                        newSearch = true;
+                    }
+                    else if (answer.Equals("Help") || answer.Equals("help"))
+                    {
+                        step = 101;
                     }
                     else
                     {
@@ -1046,6 +1314,83 @@ namespace JobAssist
                     {
                         shouldGetSalaryInfo = false;
                         shouldSpeakJobSalary = false;
+                        //askForNextJobOrNewSearch = true;
+                        shouldGetCompanyInfo = true;
+                    }
+                    else if (answer.Contains("Quit") || answer.Contains("quit"))
+                    {
+                        step = 100;
+                    }
+                    else if (string.IsNullOrEmpty(answer) || noResponse)
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try to speak your response a little bit louder.";
+                        noResponse = false;
+                    }
+                    else if (answer.Equals("NewSearch"))
+                    {
+                        step = 1;
+                        jobNumber = 1;
+                        newSearch = true;
+                    }
+                    else if (answer.Equals("Help") || answer.Equals("help"))
+                    {
+                        step = 101;
+                    }
+                    else
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try saying yes or no.";
+                    }
+                }
+                else if (shouldGetCompanyInfo)
+                {
+                    Debug.WriteLine("Would you like to know more about the company?" + answer);
+                    if (answer == "Yes" || answer == "yes")
+                    {
+                        var client = new RestClient("http://api.glassdoor.com/api/api.htm");
+                        var request = new RestRequest(Method.GET);
+                        request.AddParameter("t.p", "102234");
+                        request.AddParameter("t.k", "egSVvV0B2Jg");
+                        request.AddParameter("format", "json");
+                        request.AddParameter("v", "1");
+                        request.AddParameter("action", "employers");
+                        request.AddParameter("q", currentJobCompany);
+
+                        IRestResponse response = client.Execute(request);
+                        JObject companyData = JObject.Parse(response.Content);
+                        int recordCount = Convert.ToInt32((string)companyData["response"]["totalRecordCount"]);
+                        if(recordCount > 0)
+                        {
+                            currentCompany = new Company()
+                            {
+                                overallRating = (string)companyData["response"]["employers"][0]["overallRating"],
+                                ratingDescription = (string)companyData["response"]["employers"][0]["ratingDescription"],
+                                cultureAndValuesRating = (string)companyData["response"]["employers"][0]["cultureAndValuesRating"],
+                                seniorLeadershipRating = (string)companyData["response"]["employers"][0]["seniorLeadershipRating"],
+                                compensationAndBenefitsRating = (string)companyData["response"]["employers"][0]["compensationAndBenefitsRating"],
+                                careerOpportunitiesRating = (string)companyData["response"]["employers"][0]["careerOpportunitiesRating"],
+                                workLifeBalanceRating = (string)companyData["response"]["employers"][0]["workLifeBalanceRating"],
+                                reviewHeadline = (string)companyData["response"]["employers"][0]["featuredReview"]["headline"],
+                                reviewPros = (string)companyData["response"]["employers"][0]["featuredReview"]["pros"],
+                                reviewCons = (string)companyData["response"]["employers"][0]["featuredReview"]["cons"],
+                                recommendToFriendRating = (string)companyData["response"]["employers"][0]["recommendToFriendRating"]
+                            };
+                            noCompanyInfo = false;
+                        }
+                        else
+                        {
+                            noCompanyInfo = true;
+                        }
+                        shouldSpeakCompanyInfo = true;
+                        shouldGetCompanyInfo = false;
+                    }
+                    else if (answer == "No" || answer == "no")
+                    {
+                        shouldSpeakCompanyInfo = false;
+                        shouldGetCompanyInfo = false;
                         askForNextJobOrNewSearch = true;
                     }
                     else if (answer.Contains("Quit") || answer.Contains("quit"))
@@ -1059,11 +1404,160 @@ namespace JobAssist
                         helpText = "Try to speak your response a little bit louder.";
                         noResponse = false;
                     }
+                    else if (answer.Equals("NewSearch"))
+                    {
+                        step = 1;
+                        jobNumber = 1;
+                        newSearch = true;
+                    }
+                    else if (answer.Equals("Help") || answer.Equals("help"))
+                    {
+                        step = 101;
+                    }
                     else
                     {
                         previousStep = step;
                         step = 0;
                         helpText = "Try saying yes or no.";
+                    }
+                }
+                else if (shouldSpeakCompanyInfo)
+                {
+                    Debug.WriteLine("What would you like to know about the company? " + answer);
+                    if (answer.Equals("Ratings"))
+                    {
+                        shouldSpeakCompanyInfo = false;
+                        shouldGetCompanyRatings = true;
+                    }
+                    else if (answer.Equals("Reviews"))
+                    {
+                        shouldSpeakCompanyInfo = false;
+                        shouldGetCompanyReviews = true;
+                    }
+                    else if (answer.Equals("Quit"))
+                    {
+                        step = 100;
+                    }
+                    else if (string.IsNullOrEmpty(answer) || noResponse)
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try to speak your response a little bit louder.";
+                        noResponse = false;
+                    }
+                    else if (answer.Equals("NewSearch"))
+                    {
+                        step = 1;
+                        jobNumber = 1;
+                        newSearch = true;
+                    }
+                    else if (answer.Equals("Help") || answer.Equals("help"))
+                    {
+                        step = 101;
+                    }
+                    else
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try saying Ratings or Reviews.";
+                    }
+                }
+                else if (shouldGetCompanyRatings)
+                {
+                    Debug.WriteLine("Ok, company ratings, right? " + answer);
+                    if (answer.Equals("Yes"))
+                    {
+                        shouldGetCompanyRatings = false;
+                        shouldSpeakCompanyRatings = true;
+                    }
+                    else if (answer.Equals("No"))
+                    {
+                        shouldGetCompanyRatings = false;
+                        hasSpokenCompanyRatings = true;
+                        if(hasSpokenCompanyReviews)
+                        {
+                            askForNextJobOrNewSearch = true;
+                        }
+                        else
+                        {
+                            shouldGetCompanyReviews = true;
+                        }
+                    }
+                    else if (answer.Equals("Quit"))
+                    {
+                        step = 100;
+                    }
+                    else if (string.IsNullOrEmpty(answer) || noResponse)
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try to speak your response a little bit louder.";
+                        noResponse = false;
+                    }
+                    else if (answer.Equals("NewSearch"))
+                    {
+                        step = 1;
+                        jobNumber = 1;
+                        newSearch = true;
+                    }
+                    else if (answer.Equals("Help") || answer.Equals("help"))
+                    {
+                        step = 101;
+                    }
+                    else
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try saying Yes or No.";
+                    }
+                }
+                else if (shouldGetCompanyReviews)
+                {
+                    Debug.WriteLine("Would you like to know company review? " + answer);
+                    if (answer.Equals("Yes"))
+                    {
+                        shouldGetCompanyReviews = false;
+                        shouldSpeakCompanyReviews = true;
+                    }
+                    else if (answer.Equals("No"))
+                    {
+                        shouldGetCompanyReviews = false;
+                        hasSpokenCompanyReviews = true;
+                        if (hasSpokenCompanyRatings)
+                        {
+                            askForNextJobOrNewSearch = true;
+                        }
+                        else
+                        {
+                            shouldGetCompanyRatings = true;
+                        }
+                    }
+                    else if (answer.Equals("Quit"))
+                    {
+                        step = 100;
+                    }
+                    else if (string.IsNullOrEmpty(answer) || noResponse)
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try to speak your response a little bit louder.";
+                        noResponse = false;
+                    }
+                    else if (answer.Equals("NewSearch"))
+                    {
+                        step = 1;
+                        jobNumber = 1;
+                        newSearch = true;
+                    }
+                    else if (answer.Equals("Help") || answer.Equals("help"))
+                    {
+                        step = 101;
+                    }
+                    else
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try saying Yes or No.";
                     }
                 }
                 else if(askForNextJobOrNewSearch)
@@ -1093,6 +1587,10 @@ namespace JobAssist
                         helpText = "Try to speak your response a little bit louder.";
                         noResponse = false;
                     }
+                    else if (answer.Equals("Help") || answer.Equals("help"))
+                    {
+                        step = 101;
+                    }
                     else
                     {
                         previousStep = step;
@@ -1112,6 +1610,16 @@ namespace JobAssist
                 else if(answer.Equals("No") || answer.Equals("no"))
                 {
                     step = 2;
+                }
+                else if (answer.Equals("NewSearch"))
+                {
+                    step = 1;
+                    jobNumber = 1;
+                    newSearch = true;
+                }
+                else if (answer.Equals("Help") || answer.Equals("help"))
+                {
+                    step = 101;
                 }
                 else
                 {

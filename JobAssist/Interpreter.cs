@@ -70,5 +70,21 @@ namespace JobAssist
             Debug.WriteLine("Done");
             return entities;
         }
+
+        public string getRatingMeaning(string rating)
+        {
+            if(Convert.ToDouble(rating) >= 0 && Convert.ToDouble(rating) < 2)
+            {
+                return "poor";
+            }
+            else if(Convert.ToDouble(rating) >= 2 && Convert.ToDouble(rating) < 3.5)
+            {
+                return "average";
+            }
+            else
+            {
+                return "very good";
+            }
+        }
     }
 }
