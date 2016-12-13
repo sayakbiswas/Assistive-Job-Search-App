@@ -3,9 +3,13 @@
 <head>
     <title>Train Job Types</title>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
+    <script src="file://D:\\Workspace\\Assistive-Job-Search-App\\countriesToCities.jsonp"></script>
+    <script src="file://D:\\Workspace\\Assistive-Job-Search-App\\states_titlecase.jsonp"></script>
     <input type="file" id="fileButton" onchange="readFile(event)"/>
-    <button value="train" id="train-button">Train</button>
+    <button value="train" id="jobsType-button">Update JobsEntity</button>
     <button value="train" id="phraselist-button">Update PhraseList</button>
+    <button value="train" id="cities-button">Update Cities</button>
+    <button value="train" id="states-button">Update States</button>
 </head>
 <body>
 
@@ -15,7 +19,7 @@
         console.log("reading files");
         file = e.target.files[0];
     }
-    $("#train-button").click(function(e) {
+    $("#jobsType-button").click(function(e) {
         var params = {
             // Request parameters
         };
@@ -108,6 +112,121 @@
             });
 		};
         reader.readAsText(file);
+    });
+
+    $("#cities-button").click(function(e) {
+        var params = {
+            // Request parameters
+        };
+        
+        //console.log("cities", cities[0]["United States"]);
+        var citiesList = cities[0]["United States"];
+        console.log(citiesList);
+        citiesList.forEach(function(element){
+            if(element) {
+                var obj = new Object();
+                obj.ExampleText = element.replace("\r", "");
+                obj.SelectedIntentName = "Yes";
+                var subObj = new Object();
+                subObj.EntityType = "Cities";
+                subObj.StartToken = 0;
+                subObj.EndToken = element.length - 1;
+                obj.EntityLabels = [subObj];
+                var jsonString = JSON.stringify(obj);
+                console.log(jsonString);
+                $.ajax({
+                    url: "https://api.projectoxford.ai/luis/v1.0/prog/apps/49667a22-4f58-4422-a8fe-7d23c5b902e4/example?" + $.param(params),
+                    beforeSend: function(xhrObj){
+                        // Request headers
+                        xhrObj.setRequestHeader("Content-Type","application/json");
+                        xhrObj.setRequestHeader("Ocp-Apim-Subscription-Key","31e802b0448c49f9bfcdfba4fc0f040c");
+                    },
+                    type: "POST",
+                    // Request body
+                    data: jsonString,
+                    async: false
+                })
+                .done(function(data) {
+                    alert("success");
+                })
+                .fail(function() {
+                    alert("error");
+                });
+            }
+        });
+    });
+
+    $("#states-button").click(function(e) {
+        var params = {
+            // Request parameters
+        };
+        
+        //console.log("cities", cities[0]["United States"]);
+        var statesList = states;
+        console.log(statesList);
+        statesList.forEach(function(element){
+            if(element) {
+                //console.log(element["name"]);
+                //console.log(element["abbreviation"]);
+                var obj = new Object();
+                obj.ExampleText = element["name"].replace("\r", "");
+                obj.SelectedIntentName = "Yes";
+                var subObj = new Object();
+                subObj.EntityType = "States";
+                subObj.StartToken = 0;
+                subObj.EndToken = element["name"].length - 1;
+                obj.EntityLabels = [subObj];
+                var jsonString = JSON.stringify(obj);
+                console.log(jsonString);
+                $.ajax({
+                    url: "https://api.projectoxford.ai/luis/v1.0/prog/apps/49667a22-4f58-4422-a8fe-7d23c5b902e4/example?" + $.param(params),
+                    beforeSend: function(xhrObj){
+                        // Request headers
+                        xhrObj.setRequestHeader("Content-Type","application/json");
+                        xhrObj.setRequestHeader("Ocp-Apim-Subscription-Key","31e802b0448c49f9bfcdfba4fc0f040c");
+                    },
+                    type: "POST",
+                    // Request body
+                    data: jsonString,
+                    async: false
+                })
+                .done(function(data) {
+                    alert("success");
+                })
+                .fail(function() {
+                    alert("error");
+                });
+
+                obj = new Object();
+                obj.ExampleText = element["abbreviation"].replace("\r", "");
+                obj.SelectedIntentName = "Yes";
+                subObj = new Object();
+                subObj.EntityType = "States";
+                subObj.StartToken = 0;
+                subObj.EndToken = element["abbreviation"].length - 1;
+                obj.EntityLabels = [subObj];
+                jsonString = JSON.stringify(obj);
+                console.log(jsonString);
+                $.ajax({
+                    url: "https://api.projectoxford.ai/luis/v1.0/prog/apps/49667a22-4f58-4422-a8fe-7d23c5b902e4/example?" + $.param(params),
+                    beforeSend: function(xhrObj){
+                        // Request headers
+                        xhrObj.setRequestHeader("Content-Type","application/json");
+                        xhrObj.setRequestHeader("Ocp-Apim-Subscription-Key","31e802b0448c49f9bfcdfba4fc0f040c");
+                    },
+                    type: "POST",
+                    // Request body
+                    data: jsonString,
+                    async: false
+                })
+                .done(function(data) {
+                    alert("success");
+                })
+                .fail(function() {
+                    alert("error");
+                });
+            }
+        });
     });
 </script>
 </body>

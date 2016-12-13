@@ -125,6 +125,16 @@ namespace JobAssist
             //Initialize MongoDB client
             client = new MongoClient(mongoURI);
             ajsDatabase = client.GetDatabase("assisstive-job-search");
+
+            string path = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            string logFile = path + @"\job_assist_log_" + DateTime.Now.Date.ToString("MMM - dd - yyyy") + ".log";
+
+            TextWriterTraceListener[] listeners = new TextWriterTraceListener[] {
+                new TextWriterTraceListener(logFile),
+                new TextWriterTraceListener(Console.Out)
+            };
+            Debug.Listeners.AddRange(listeners);
+            Debug.AutoFlush = true;
         }
 
         private void InitializeSynthesizer()
@@ -303,7 +313,7 @@ namespace JobAssist
 
                     if (step == 100 && shouldSayQuitMessage)
                     {
-                        getAllUtterancesFromDB();
+                        //getAllUtterancesFromDB();
                         Debug.WriteLine("Quitting ...");
                         Environment.Exit(0);
                     }
@@ -377,11 +387,27 @@ namespace JobAssist
                 if (firstRun == 0)
                 {
                     //builder.AppendText("Welcome to job assist. Speak your responses after the beep. Say quit at any time to exit.");
-                    builder.AppendText("Welcome to job assist. Say new search at any time to start the job search again and quit to exit. Speak your responses after the beep.");
+                    builder.AppendText("Welcome to job assist. Say new search at any time to start the job search again, and quit to exit. Speak your responses after the beep.");
                     firstRun++;
                 }
                 foundJobType = false;
                 foundJobLoc = false;
+                shouldSaveJob = false;
+                shouldGetSalaryInfo = false;
+                shouldSpeakJobSalary = false;
+                askForNextJobOrNewSearch = false;
+                shouldSpeakNextJob = true;
+                shouldSayQuitMessage = false;
+                shouldGetCompanyInfo = false;
+                shouldSpeakCompanyInfo = false;
+                shouldGetCompanyRatings = false;
+                shouldGetCompanyReviews = false;
+                shouldSpeakCompanyRatings = false;
+                shouldSpeakCompanyReviews = false;
+                hasSpokenCompanyRatings = false;
+                hasSpokenCompanyReviews = false;
+                shouldAskForSaveJob = false;
+                noCompanyInfo = false;
                 jobLocation = "";
                 jobType = "";
                 builder.StartSentence();
@@ -437,7 +463,7 @@ namespace JobAssist
             if (step == 5)
             {
                 builder.StartSentence();
-                builder.AppendText("Ok. What is the city, state or zip code that you would like me to search?");
+                builder.AppendText("Alright, what is the city, state or zip code that you would like me to search?");
                 builder.EndSentence();
             }
 
@@ -546,7 +572,8 @@ namespace JobAssist
                             {
                                 shouldSpeakNextJob = false;
                             }
-                            shouldAskForSaveJob = true;
+                            //shouldAskForSaveJob = true;
+                            shouldGetSalaryInfo = true;
                             break;
                         }
                         count++;
@@ -566,7 +593,8 @@ namespace JobAssist
                     builder.AppendText("Done! I have saved the job.");
                     builder.EndSentence();
                     shouldSaveJob = false;
-                    shouldGetSalaryInfo = true;
+                    //shouldGetSalaryInfo = true;
+                    askForNextJobOrNewSearch = true;
                 }
 
                 if(shouldGetSalaryInfo)
@@ -600,11 +628,15 @@ namespace JobAssist
                 if(shouldSpeakCompanyInfo)
                 {
                     builder.StartSentence();
-                    string askCompanySpecifics = string.Format("I'm sorry! I can't seem to find any information on {0}.", 
-                        currentJobCompany);
-                    if (!noCompanyInfo)
+                    string askCompanySpecifics = string.Format("Okay, what would you like to know about the company? I can tell you about ratings and reviews.");
+                    if (noCompanyInfo)
                     {
-                        askCompanySpecifics = string.Format("Okay, what would you like to know about the company? I can tell you about ratings and reviews.");
+                        askCompanySpecifics = string.Format("I'm sorry! I can't seem to find any information on {0}.",
+                            currentJobCompany);
+                        systemTurn = true;
+                        userTurn = false;
+                        shouldAskForSaveJob = true;
+                        shouldSpeakCompanyInfo = false;
                     }
                     
                     builder.AppendText(askCompanySpecifics);
@@ -672,7 +704,10 @@ namespace JobAssist
                     }
                     else
                     {
-                        askForNextJobOrNewSearch = true;
+                        shouldAskForSaveJob = true;
+                        systemTurn = true;
+                        userTurn = false;
+                        //askForNextJobOrNewSearch = true;
                     }
                 }
 
@@ -701,14 +736,14 @@ namespace JobAssist
                     if (!string.IsNullOrEmpty(currentCompany.reviewPros))
                     {
                         builder.StartSentence();
-                        speakText += string.Format("Pros. {0}", currentCompany.reviewPros);
+                        speakText = string.Format("Pros. {0}", currentCompany.reviewPros);
                         builder.AppendText(speakText);
                         builder.EndSentence();
                     }
                     if(!string.IsNullOrEmpty(currentCompany.reviewCons))
                     {
                         builder.StartSentence();
-                        speakText += string.Format("Cons. {0}", currentCompany.reviewCons);
+                        speakText = string.Format("Cons. {0}", currentCompany.reviewCons);
                         builder.AppendText(speakText);
                         builder.EndSentence();
                     }
@@ -722,7 +757,10 @@ namespace JobAssist
                     }
                     else
                     {
-                        askForNextJobOrNewSearch = true;
+                        shouldAskForSaveJob = true;
+                        systemTurn = true;
+                        userTurn = false;
+                        //askForNextJobOrNewSearch = true;
                     }
                 }
 
@@ -788,7 +826,39 @@ namespace JobAssist
                         }
                     }
 
-                    if (entityKey.Equals("LocationEntity") || entityKey.Contains("geography"))
+                    if (entityKey.Equals("Location"))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            Debug.WriteLine("entity " + jobLocEntity);
+                            continue;
+                        }
+                    }
+                    if (entityKey.Contains("Cities") && string.IsNullOrEmpty(jobLocEntity))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            Debug.WriteLine("entity " + jobLocEntity);
+                            continue;
+                        }
+                    }
+                    if (entityKey.Contains("States") && string.IsNullOrEmpty(jobLocEntity))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            Debug.WriteLine("entity " + jobLocEntity);
+                            continue;
+                        }
+                    }
+                    if (entityKey.Equals("LocationEntity") && string.IsNullOrEmpty(jobLocEntity))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            Debug.WriteLine("entity " + jobLocEntity);
+                            continue;
+                        }
+                    }
+                    if (entityKey.Contains("geography") && string.IsNullOrEmpty(jobLocEntity))
                     {
                         if (entities.TryGetValue(entityKey, out jobLocEntity))
                         {
@@ -854,6 +924,13 @@ namespace JobAssist
                 else if(answer.Equals("Help") || answer.Equals("help"))
                 {
                     step = 101;
+                }
+                else if(string.IsNullOrEmpty(answer) || noResponse)
+                {
+                    previousStep = step;
+                    step = 0;
+                    helpText = "Try to speak your responses a little bit louder.";
+                    noResponse = false;
                 }
                 else
                 {
@@ -966,6 +1043,7 @@ namespace JobAssist
                         step = 3;
                         answer = jobEntity;
                         jobType = jobEntity;
+                        lastJob = jobType;
                     }
                 }
                 else if (answer.Contains("Quit") || answer.Contains("quit"))
@@ -977,6 +1055,7 @@ namespace JobAssist
                     previousStep = step;
                     step = 0;
                     helpText = "Try to speak your responses a little bit louder.";
+                    answer = lastJob;
                     noResponse = false;
                 }
                 else if (answer.Equals("NewSearch"))
@@ -1014,7 +1093,35 @@ namespace JobAssist
                 string jobLocEntity = "";
                 foreach (String entityKey in entities.Keys)
                 {
-                    if (entityKey.Equals("LocationEntity") || entityKey.Contains("geography"))
+                    if (entityKey.Equals("Location"))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Contains("Cities") && string.IsNullOrEmpty(jobLocEntity))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Contains("States") && string.IsNullOrEmpty(jobLocEntity))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Equals("LocationEntity") && string.IsNullOrEmpty(jobLocEntity))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Contains("geography") && string.IsNullOrEmpty(jobLocEntity))
                     {
                         if (entities.TryGetValue(entityKey, out jobLocEntity))
                         {
@@ -1057,6 +1164,13 @@ namespace JobAssist
                 {
                     step = 101;
                 }
+                else if (string.IsNullOrEmpty(answer) || noResponse)
+                {
+                    previousStep = step;
+                    step = 0;
+                    helpText = "Try to speak your responses a little bit louder.";
+                    noResponse = false;
+                }
                 else
                 {
                     if (String.IsNullOrEmpty(jobLocEntity))
@@ -1081,9 +1195,38 @@ namespace JobAssist
                 Dictionary<string, string> entities = interpreter.getEntities(interpretedSpeech);
                 Debug.WriteLine("entities length " + entities.Count);
                 string answerWithoutInterpretation = answer;
+                answer = "";
                 foreach (String entityKey in entities.Keys)
                 {
-                    if (entityKey.Equals("LocationEntity") || entityKey.Contains("geography"))
+                    if (entityKey.Equals("Location"))
+                    {
+                        if (entities.TryGetValue(entityKey, out answer))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Contains("Cities") && string.IsNullOrEmpty(answer))
+                    {
+                        if (entities.TryGetValue(entityKey, out answer))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Contains("States") && string.IsNullOrEmpty(answer))
+                    {
+                        if (entities.TryGetValue(entityKey, out answer))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Equals("LocationEntity") && string.IsNullOrEmpty(answer))
+                    {
+                        if (entities.TryGetValue(entityKey, out answer))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Contains("geography") && string.IsNullOrEmpty(answer))
                     {
                         if (entities.TryGetValue(entityKey, out answer))
                         {
@@ -1095,16 +1238,28 @@ namespace JobAssist
                 {
                     answer = answerWithoutInterpretation;
                 }
+                string interpretedAnswer = interpreter.getIntent(interpretedSpeech);
                 Debug.WriteLine("You would like to search for jobs in: " + answer);
-                if (answer.Equals("NewSearch"))
+                if (interpretedAnswer.Equals("NewSearch") && answerWithoutInterpretation.Contains("new search"))
                 {
                     step = 1;
                     jobNumber = 1;
                     newSearch = true;
                 }
-                else if (answer.Equals("Help") || answer.Equals("help"))
+                else if (interpretedAnswer.Equals("Help") || interpretedAnswer.Equals("help"))
                 {
                     step = 101;
+                }
+                else if (string.IsNullOrEmpty(answer) || noResponse)
+                {
+                    previousStep = step;
+                    step = 0;
+                    helpText = "Try to speak your responses a little bit louder.";
+                    noResponse = false;
+                }
+                else if (answer.Contains("Quit") || answer.Contains("quit") || interpretedAnswer.Equals("Quit"))
+                {
+                    step = 100;
                 }
                 else
                 {
@@ -1121,7 +1276,35 @@ namespace JobAssist
                 string jobLocEntity = "";
                 foreach (String entityKey in entities.Keys)
                 {
-                    if (entityKey.Equals("LocationEntity") || entityKey.Contains("geography"))
+                    if (entityKey.Equals("Location"))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Contains("Cities") && string.IsNullOrEmpty(jobLocEntity))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Contains("States") && string.IsNullOrEmpty(jobLocEntity))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Equals("LocationEntity") && string.IsNullOrEmpty(jobLocEntity))
+                    {
+                        if (entities.TryGetValue(entityKey, out jobLocEntity))
+                        {
+                            break;
+                        }
+                    }
+                    if (entityKey.Contains("geography") && string.IsNullOrEmpty(jobLocEntity))
                     {
                         if (entities.TryGetValue(entityKey, out jobLocEntity))
                         {
@@ -1164,6 +1347,14 @@ namespace JobAssist
                 else if (answer.Equals("Help") || answer.Equals("help"))
                 {
                     step = 101;
+                }
+                else if (string.IsNullOrEmpty(answer) || noResponse)
+                {
+                    previousStep = step;
+                    step = 0;
+                    helpText = "Try to speak your responses a little bit louder.";
+                    noResponse = false;
+                    answer = lastLocation;
                 }
                 else
                 {
@@ -1217,6 +1408,13 @@ namespace JobAssist
                     else if (answer.Equals("Help") || answer.Equals("help"))
                     {
                         step = 101;
+                    }
+                    else if (string.IsNullOrEmpty(answer) || noResponse)
+                    {
+                        previousStep = step;
+                        step = 0;
+                        helpText = "Try to speak your responses a little bit louder.";
+                        noResponse = false;
                     }
                     else
                     {
