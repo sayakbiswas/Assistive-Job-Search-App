@@ -967,7 +967,7 @@ namespace JobAssist
                 {
                     answer = interpreter.getIntent(interpretedSpeech);
                 }
-                if ((String.IsNullOrEmpty(answer) || answer.Contains("None"))
+                if ((String.IsNullOrEmpty(answer) || answer.Contains("None") || answer.Contains("Yes") || answer.Contains("No"))
                     && answerWithoutInterpretation.Split(new char[] { ' ', '.', ',' }, StringSplitOptions.RemoveEmptyEntries).Count() < 4)
                 {
                     answer = answerWithoutInterpretation;
