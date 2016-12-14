@@ -20,7 +20,7 @@ namespace JobAssist
             }
             var client = new RestClient("https://api.projectoxford.ai/luis/v2.0/apps/49667a22-4f58-4422-a8fe-7d23c5b902e4?subscription-key=31e802b0448c49f9bfcdfba4fc0f040c&verbose=true");
             var request = new RestRequest(Method.GET);
-            request.AddParameter("q", utterance.Replace(".", ""));
+            request.AddParameter("q", utterance);
             IRestResponse response = client.Execute(request);
             Debug.WriteLine("Response from LUIS :: " + response.Content);
             JObject responseData = JObject.Parse(response.Content);

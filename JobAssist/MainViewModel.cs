@@ -774,7 +774,7 @@ namespace JobAssist
                 if(askForNextJobOrNewSearch)
                 {
                     builder.StartSentence();
-                    builder.AppendText("Would you like to hear the next job or begin a new search?");
+                    builder.AppendText("Would you like to hear the next job, begin a new search or quit?");
                     builder.EndSentence();
                 }
             }
