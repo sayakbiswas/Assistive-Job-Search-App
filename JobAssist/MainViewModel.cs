@@ -539,6 +539,13 @@ namespace JobAssist
                     builder.AppendText("Would you like to review the listings?");
                     builder.EndSentence();
                 }
+                else
+                {
+                    step = 1;
+                    newSearch = true;
+                    systemTurn = true;
+                    userTurn = false;
+                }
             }
 
             if (step == 9) //reviewing the job listings 
@@ -1455,8 +1462,9 @@ namespace JobAssist
                     else if (answer == "No" || answer == "no")
                     {
                         shouldSaveJob = false;
-                        shouldGetSalaryInfo = true;
+                        //shouldGetSalaryInfo = true;
                         shouldAskForSaveJob = false;
+                        askForNextJobOrNewSearch = true;
                     }
                     else if (answer.Contains("Quit") || answer.Contains("quit"))
                     {
@@ -1589,7 +1597,8 @@ namespace JobAssist
                     {
                         shouldSpeakCompanyInfo = false;
                         shouldGetCompanyInfo = false;
-                        askForNextJobOrNewSearch = true;
+                        //askForNextJobOrNewSearch = true;
+                        shouldAskForSaveJob = true;
                     }
                     else if (answer.Contains("Quit") || answer.Contains("quit"))
                     {
@@ -1674,7 +1683,8 @@ namespace JobAssist
                         hasSpokenCompanyRatings = true;
                         if(hasSpokenCompanyReviews)
                         {
-                            askForNextJobOrNewSearch = true;
+                            //askForNextJobOrNewSearch = true;
+                            shouldAskForSaveJob = true;
                         }
                         else
                         {
@@ -1723,7 +1733,8 @@ namespace JobAssist
                         hasSpokenCompanyReviews = true;
                         if (hasSpokenCompanyRatings)
                         {
-                            askForNextJobOrNewSearch = true;
+                            //askForNextJobOrNewSearch = true;
+                            shouldAskForSaveJob = true;
                         }
                         else
                         {
